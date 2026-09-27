@@ -1,0 +1,26 @@
+{
+  "key": "srd-2024_breastplate",
+  "ac_display": "14 + Dex modifier (max 2)",
+  "category": "medium",
+  "document": {
+    "name": "System Reference Document 5.2",
+    "key": "srd-2024",
+    "type": "SOURCE",
+    "display_name": "5e 2024 Rules",
+    "publisher": {
+      "name": "Wizards of the Coast",
+      "key": "wizards-of-the-coast"
+    },
+    "gamesystem": {
+      "name": "5th Edition 2024",
+      "key": "5e-2024"
+    },
+    "permalink": "https://dnd.wizards.com/resources/systems-reference-document"
+  },
+  "name": "Breastplate",
+  "grants_stealth_disadvantage": false,
+  "strength_score_required": null,
+  "ac_base": 14,
+  "ac_add_dexmod": true,
+  "ac_cap_dexmod": 2
+}

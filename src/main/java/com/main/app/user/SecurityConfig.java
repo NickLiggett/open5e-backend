@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -23,6 +24,7 @@ import java.io.IOException;
  * see and change is decided by the visibility filter and {@code DocumentAccess}, not here.
  */
 @Configuration(proxyBeanMethods = false)
+@ConditionalOnWebApplication
 public class SecurityConfig {
 
     /** {@code dev}: no tokens; {@link DevCurrentUser} takes the user from the {@code X-User} header. */

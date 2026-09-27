@@ -1,0 +1,12 @@
+{
+  "key": "srd-2024_the-six-abilities_ability-scores",
+  "name": "Ability Scores",
+  "desc": "Each ability has a score from 1 to 20, although some monsters have a score as high as 30. The score represents the magnitude of an ability. The Ability Scores table summarizes what the scores mean.\n\n|Score|Meaning|\n|---|---|\n|1| This is the lowest a score can normally go. If an effect reduces a score to 0, that effect explains what happens. |\n|2–9| This represents a weak capability.|\n|10–11| This represents the human average.|\n|12–19| This represents a strong capability.|\n|20| This is the highest an adventurer's score can go unless a feature says otherwise. |\n|21–29| This represents an extraordinary capability. |\n|30| This is the highest a score can go.|",
+  "index": 1,
+  "initialHeaderLevel": 2,
+  "document": "srd-2024",
+  "ruleset": "srd-2024_the-six-abilities",
+  "crossreferences": {
+    "to": []
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "key": "abyssal",
+  "document": {
+    "name": "5e Core Concepts",
+    "key": "core",
+    "type": "MISC",
+    "display_name": "5e Core",
+    "publisher": {
+      "name": "Open5e",
+      "key": "open5e"
+    },
+    "gamesystem": {
+      "name": "5th Edition 2014",
+      "key": "5e-2014"
+    },
+    "permalink": "https://dnd.wizards.com/resources/systems-reference-document"
+  },
+  "name": "Abyssal",
+  "desc": "Typical speakers are demons.",
+  "is_exotic": true,
+  "is_secret": false,
+  "script_language": "infernal",
+  "crossreferences": {
+    "to": []
+  }
+}

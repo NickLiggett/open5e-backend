@@ -1,0 +1,12 @@
+{
+  "key": "arctic",
+  "name": "Arctic or Tundra",
+  "desc": "[None provided]",
+  "aquatic": false,
+  "planar": false,
+  "interior": false,
+  "document": "core",
+  "crossreferences": {
+    "to": []
+  }
+}

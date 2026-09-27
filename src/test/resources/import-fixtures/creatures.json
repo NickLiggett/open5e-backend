@@ -1,0 +1,281 @@
+{
+  "key": "a5e-mm_aboleth",
+  "name": "Aboleth",
+  "document": {
+    "name": "Monstrous Menagerie",
+    "key": "a5e-mm",
+    "type": "SOURCE",
+    "display_name": "Monstrous Menagerie",
+    "publisher": {
+      "name": "EN Publishing",
+      "key": "en-publishing"
+    },
+    "gamesystem": {
+      "name": "Advanced 5th Edition",
+      "key": "a5e"
+    },
+    "permalink": "https://enpublishingrpg.com/collections/level-up-advanced-5th-edition-a5e/products/level-up-monstrous-menagerie-a5e"
+  },
+  "type": {
+    "name": "Aberration",
+    "key": "aberration"
+  },
+  "size": {
+    "name": "Large",
+    "key": "large"
+  },
+  "challenge_rating": 11.0,
+  "proficiency_bonus": null,
+  "speed": {
+    "walk": 10,
+    "unit": "feet",
+    "swim": 40
+  },
+  "speed_all": {
+    "unit": "feet",
+    "walk": 10,
+    "crawl": 5,
+    "hover": false,
+    "fly": 0,
+    "burrow": 0,
+    "climb": 5,
+    "swim": 40
+  },
+  "category": "Monsters",
+  "subcategory": null,
+  "alignment": "chaotic evil",
+  "languages": {
+    "as_string": "Deep Speech, telepathy 120 ft.",
+    "data": [
+      {
+        "name": "Deep Speech",
+        "key": "deep-speech",
+        "desc": "Typical speakers include aboleths and cloakers. It is only spoken."
+      }
+    ]
+  },
+  "armor_class": 17,
+  "armor_detail": "",
+  "hit_points": 171,
+  "hit_dice": "18d10+72",
+  "experience_points": 7200,
+  "ability_scores": {
+    "strength": 20,
+    "dexterity": 12,
+    "constitution": 18,
+    "intelligence": 20,
+    "wisdom": 20,
+    "charisma": 18
+  },
+  "modifiers": {
+    "strength": 5,
+    "dexterity": 1,
+    "constitution": 4,
+    "intelligence": 5,
+    "wisdom": 5,
+    "charisma": 4
+  },
+  "initiative_bonus": 1,
+  "saving_throws": {
+    "dexterity": 5,
+    "constitution": 8,
+    "intelligence": 9,
+    "wisdom": 9
+  },
+  "saving_throws_all": {
+    "strength": 5,
+    "dexterity": 5,
+    "constitution": 8,
+    "intelligence": 9,
+    "wisdom": 9,
+    "charisma": 4
+  },
+  "skill_bonuses": {
+    "deception": 8,
+    "history": 9,
+    "stealth": 5
+  },
+  "skill_bonuses_all": {
+    "acrobatics": 1,
+    "animal_handling": 5,
+    "arcana": 5,
+    "athletics": 5,
+    "deception": 8,
+    "history": 9,
+    "insight": 5,
+    "intimidation": 4,
+    "investigation": 5,
+    "medicine": 5,
+    "nature": 5,
+    "perception": 5,
+    "performance": 4,
+    "persuasion": 4,
+    "religion": 5,
+    "sleight_of_hand": 1,
+    "stealth": 5,
+    "survival": 5
+  },
+  "passive_perception": 15,
+  "resistances_and_immunities": {
+    "damage_immunities_display": "",
+    "damage_immunities": [],
+    "damage_resistances_display": "",
+    "damage_resistances": [],
+    "damage_vulnerabilities_display": "",
+    "damage_vulnerabilities": [],
+    "condition_immunities_display": "",
+    "condition_immunities": []
+  },
+  "normal_sight_range": 10560,
+  "darkvision_range": 120,
+  "blindsight_range": 30,
+  "tremorsense_range": null,
+  "truesight_range": null,
+  "actions": [
+    {
+      "name": "Baleful Charm",
+      "desc": "The aboleth targets one creature within 60 feet that has contracted Sea Change. The target makes a DC 16 Wisdom saving throw. On a failure, it is magically charmed by the aboleth until the aboleth dies. The target can repeat this saving throw every 24 hours and when it takes damage from the aboleth or the aboleths allies. While charmed in this way, the target can communicate telepathically with the aboleth over any distance and it follows the aboleths orders.",
+      "crossreferences": {
+        "to": []
+      },
+      "attacks": [],
+      "action_type": "LEGENDARY_ACTION",
+      "order_in_statblock": 3,
+      "legendary_action_cost": 2,
+      "limited_to_form": null,
+      "usage_limits": null
+    },
+    {
+      "name": "Move",
+      "desc": "The aboleth moves up to its swim speed without provoking opportunity attacks.",
+      "crossreferences": {
+        "to": []
+      },
+      "attacks": [],
+      "action_type": "LEGENDARY_ACTION",
+      "order_in_statblock": 1,
+      "legendary_action_cost": 1,
+      "limited_to_form": null,
+      "usage_limits": null
+    },
+    {
+      "name": "Multiattack",
+      "desc": "The aboleth attacks three times with its tentacle.",
+      "crossreferences": {
+        "to": []
+      },
+      "attacks": [],
+      "action_type": "ACTION",
+      "order_in_statblock": 0,
+      "legendary_action_cost": null,
+      "limited_to_form": null,
+      "usage_limits": null
+    },
+    {
+      "name": "Slimy Cloud",
+      "desc": "While underwater  the aboleth exudes a cloud of inky slime in a 30-foot-radius sphere. Each non-aboleth creature in the area when the cloud appears makes a DC 16 Constitution saving throw. On a failure  it takes 44 (8d10) poison damage and is poisoned for 1 minute. The slime extends around corners  and the area is heavily obscured for 1 minute or until a strong current dissipates the cloud.",
+      "crossreferences": {
+        "to": []
+      },
+      "attacks": [],
+      "action_type": "ACTION",
+      "order_in_statblock": 2,
+      "legendary_action_cost": null,
+      "limited_to_form": null,
+      "usage_limits": {
+        "type": "PER_DAY",
+        "param": 1
+      }
+    },
+    {
+      "name": "Soul Drain",
+      "desc": "One creature charmed by the aboleth takes 22 (4d10) psychic damage, and the aboleth regains hit points equal to the damage dealt.",
+      "crossreferences": {
+        "to": []
+      },
+      "attacks": [],
+      "action_type": "LEGENDARY_ACTION",
+      "order_in_statblock": 4,
+      "legendary_action_cost": 2,
+      "limited_to_form": null,
+      "usage_limits": null
+    },
+    {
+      "name": "Telepathic Summon",
+      "desc": "One creature within 90 feet makes a DC 16 Wisdom saving throw. On a failure, it must use its reaction, if available, to move up to its speed toward the aboleth by the most direct route that avoids hazards, not avoiding opportunity attacks. This is a magical charm effect.",
+      "crossreferences": {
+        "to": []
+      },
+      "attacks": [],
+      "action_type": "LEGENDARY_ACTION",
+      "order_in_statblock": 2,
+      "legendary_action_cost": 1,
+      "limited_to_form": null,
+      "usage_limits": null
+    },
+    {
+      "name": "Tentacle",
+      "desc": "Melee Weapon Attack: +9 to hit, reach 15 ft., one target. Hit: 19 (4d6 + 5) bludgeoning damage. The aboleth can choose instead to deal 0 damage. If the target is a creature  it makes a DC 16 Constitution saving throw. On a failure  it contracts a disease called the Sea Change. On a success  it is immune to this disease for 24 hours. While affected by this disease  the target has disadvantage on Wisdom saving throws. After 1 hour  the target grows gills  it can breathe water  its skin becomes slimy  and it begins to suffocate if it goes 12 hours without being immersed in water for at least 1 hour. This disease can be removed with a disease-removing spell cast with at least a 4th-level spell slot  and it ends 24 hours after the aboleth dies.",
+      "crossreferences": {
+        "to": []
+      },
+      "attacks": [
+        {
+          "name": "Tentacle attack",
+          "attack_type": "WEAPON",
+          "to_hit_mod": 9,
+          "reach": 15,
+          "range": null,
+          "long_range": null,
+          "target_creature_only": false,
+          "damage_die_count": 4,
+          "damage_die_type": "D6",
+          "damage_bonus": 5,
+          "damage_type": null,
+          "extra_damage_die_count": null,
+          "extra_damage_die_type": null,
+          "extra_damage_bonus": null,
+          "extra_damage_type": {
+            "name": "Bludgeoning",
+            "key": "bludgeoning"
+          },
+          "distance_unit": "feet"
+        }
+      ],
+      "action_type": "ACTION",
+      "order_in_statblock": 1,
+      "legendary_action_cost": null,
+      "limited_to_form": null,
+      "usage_limits": null
+    },
+    {
+      "name": "The aboleth can take 2 legendary actions",
+      "desc": "Only one legendary action can be used at a time and only at the end of another creatures turn. It regains spent legendary actions at the start of its turn.",
+      "crossreferences": {
+        "to": []
+      },
+      "attacks": [],
+      "action_type": "LEGENDARY_ACTION",
+      "order_in_statblock": 0,
+      "legendary_action_cost": 1,
+      "limited_to_form": null,
+      "usage_limits": null
+    }
+  ],
+  "traits": [
+    {
+      "name": "Amphibious",
+      "desc": "The aboleth can breathe air and water."
+    },
+    {
+      "name": "Innate Spellcasting",
+      "desc": "The aboleths spellcasting ability is Charisma (spell save DC 16). It can innately cast the following spells, requiring no components:\n- **3/Day Each:** Detect Thoughts (range 120 ft), Project Image (range 1 mile), Phantasmal Force"
+    }
+  ],
+  "creaturesets": [],
+  "environments": [],
+  "illustration": null,
+  "crossreferences": {
+    "to": []
+  }
+}

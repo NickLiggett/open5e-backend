@@ -1,0 +1,19 @@
+{
+  "key": "adventuring-gear",
+  "document": {
+    "name": "5e Core Concepts",
+    "key": "core",
+    "type": "MISC",
+    "display_name": "5e Core",
+    "publisher": {
+      "name": "Open5e",
+      "key": "open5e"
+    },
+    "gamesystem": {
+      "name": "5th Edition 2014",
+      "key": "5e-2014"
+    },
+    "permalink": "https://dnd.wizards.com/resources/systems-reference-document"
+  },
+  "name": "Adventuring Gear"
+}

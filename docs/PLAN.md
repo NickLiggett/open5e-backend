@@ -35,7 +35,10 @@ A REST API over the Open5e dataset where:
 7. **Code is organized by feature** (`com.main.app.creature`, `com.main.app.spell`, …), with shared records in
    `com.main.app.common`.
 8. **Default content is refreshed by an importer** that only touches default documents. Restoring the dump over a
-   database with user content would delete it.
+   database with user content would delete it. The importer reads the Open5e API, whose endpoints and fields match
+   the tables, and merges it in one transaction: insert, update if changed, delete if gone, never touching user
+   documents, and refusing to delete more than half of a table unless told to. It runs as a command
+   (`--spring.profiles.active=import --open5e.import.mode=dry-run|apply`).
 9. **Default content is protected twice.** `DocumentAccess` refuses writes to it, and database triggers (V5) refuse
    them too, in case of a bug. The importer opts out for its own transaction with
    `SET LOCAL open5e.allow_default_content_changes = 'on'`.
@@ -64,7 +67,7 @@ don't depend on embedded JSON copies.
 | 3 | **Read endpoints** for all resources, with pagination, filters and a shared error handler | Done |
 | 4 | **Write endpoints:** create/update/delete in own documents, copy-to-customize, sharing | Done |
 | 5 | **Real login:** token-based `CurrentUser`, Keycloak in Compose | Done |
-| 6 | **Importer** for default content | |
+| 6 | **Importer** for default content | Done |
 
 ## Resources (phase 3)
 
@@ -106,7 +109,8 @@ As built:
   queries. `OwnedResourceMappingTest` enforces this.
 - **Tests are generic** and pick up new entities and endpoints automatically: `JsonColumnsRoundTripTest`,
   `DtoMappingTest`, `EndpointSmokeTest`; `FilterTest` checks each filter against SQL.
-- **Not done yet:** rewriting cross-reference URLs (`http://localhost:8000/v2/spells/x/`) to `/api/spells/x`.
+- **Cross-reference URLs** (`http://localhost:8000/v2/spells/x/`) are rewritten to `/api/spells/x`: in the data
+  by V6, and on import by `ApiUrls`.
 
 ## Data notes
 

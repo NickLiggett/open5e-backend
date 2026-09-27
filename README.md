@@ -329,6 +329,50 @@ can't see it at all (so other users' content is never revealed).
 
 The database also refuses changes to default content (migration V5), as a backstop in case of an application bug.
 
+## Refreshing default content
+
+The default content can be refreshed from the [Open5e API](https://api.open5e.com/v2/) without touching users'
+content. The importer runs as a command, not a web server:
+
+```sh
+# With Docker: report what would change (nothing is written)
+docker compose run --rm app --spring.profiles.active=import --open5e.import.mode=dry-run
+
+# Apply the changes
+docker compose run --rm app --spring.profiles.active=import --open5e.import.mode=apply
+
+# Or from Gradle, against the database in application.properties
+./gradlew bootRun --args='--spring.profiles.active=import --open5e.import.mode=dry-run'
+```
+
+It prints what changed per table:
+
+```
+table              fetched  inserted  updated  unchanged  deleted
+magicitems            2322         3       58       2261        0
+services                30         0        7         23        0
+...
+98 changes
+```
+
+- **What it does:** fetches all 33 endpoints, then in **one transaction** adds new default rows, replaces changed
+  ones (unchanged rows aren't written) and deletes default rows upstream no longer has. If anything fails, nothing
+  changes.
+- **What it never does:** write to users' documents. An upstream row whose key belongs to user content is skipped
+  and listed. Users' copies of deleted default rows keep their data; only their `derivedFrom` is cleared.
+- **Safety net:** it refuses to delete more than half of a table's default rows (for example, if the API returned
+  too little). Add `--open5e.import.allow-large-deletions=true` if that's really intended.
+- **Fields with no column** (e.g. new in the API) aren't imported and are listed, as a sign the schema may need a
+  migration.
+- **Timestamps** from the API have no time zone and are read as UTC.
+- **Links** to other Open5e resources become paths on this API (`/api/spells/srd_fireball`); see V6 below.
+- The source is `open5e.import.source-url` (default `https://api.open5e.com/v2`); the command exits with `0` on
+  success and `1` on failure.
+
+At the time of writing, the public API has 98 changes compared with `open5e_backup.dump`: 3 new magic items,
+attunement fixes on 58 magic items, wording changes on 7 services and 4 spells, one ability and one class, and the
+24 documents' publication dates (the dump stored them 7 hours off, from being read in a non-UTC time zone).
+
 ## Database and migrations
 
 Flyway manages the `open5e` schema. Migrations are in `src/main/resources/db/migration`:
@@ -339,7 +383,8 @@ Flyway manages the `open5e` schema. Migrations are in `src/main/resources/db/mig
 | `V2__drop_stray_public_tables.sql` | Drops leftover tables from the `public` schema |
 | `V3__creature_json_columns_to_jsonb.sql` | Converts the creature JSON columns from text to `jsonb`, like every other table |
 | `V4__ownership.sql` | Users, document owners and sharing (`document_members`); `document_key` and `derived_from` on every resource |
-| `V5__protect_default_content.sql` | Triggers that refuse changes to default content and default documents. A transaction can opt out with `SET LOCAL open5e.allow_default_content_changes = 'on'` (for a future importer) |
+| `V5__protect_default_content.sql` | Triggers that refuse changes to default content and default documents. A transaction can opt out with `SET LOCAL open5e.allow_default_content_changes = 'on'`, as the importer does |
+| `V6__rewrite_open5e_links.sql` | Rewrites links to other Open5e resources (`http://<any host>/v2/spells/srd_fireball/`) to paths on this API (`/api/spells/srd_fireball`) |
 
 - **Restored database (the Compose setup):** Flyway sees an existing schema, records it as V1 without running the
   script, then applies V2 and anything newer.
@@ -349,7 +394,7 @@ Flyway manages the `open5e` schema. Migrations are in `src/main/resources/db/mig
 - Hibernate runs with `ddl-auto=validate`: it checks the entities against the schema at startup and never changes the
   schema itself.
 
-To change the schema, add a new file with the next version number (e.g. `V6__description.sql`), and restart the
+To change the schema, add a new file with the next version number (e.g. `V7__description.sql`), and restart the
 app. Don't edit
 migrations that have already been applied.
 
@@ -374,6 +419,9 @@ docker compose up -d db
 | `ResourceWriteTest` | Creating, replacing, updating, deleting and copying resources; documents and sharing; permissions for owners, editors, viewers and strangers; validation errors |
 | `WriteSmokeTest` | Every writable endpoint: copy a default resource, check the copy matches, `PUT` its full JSON back unchanged, `PATCH` it, delete it |
 | `DefaultContentProtectionTest` | The database refuses changes to default content and documents unless a transaction opts in |
+| `ImportMappingTest` | One recorded row per Open5e endpoint (`src/test/resources/import-fixtures/`): every field lands in a column with a valid value, key columns are filled, links are rewritten |
+| `ImportMergeTest` | Merging upstream rows: inserts, updates, deletes, user content untouched, the large-deletion guard, dry runs, UTC timestamps. Every merge is rolled back |
+| `ApiUrlsTest` | Which links are rewritten, and which are left alone |
 | `VisibilityTest` | Real requests as different users (`dev` profile): owners and members see a homebrew creature, strangers get `404`, everyone sees default content |
 | `AnonymousVisibilityTest` | Outside `dev`, requests without a token are anonymous: the `X-User` header is ignored and writes get `401` |
 | `TokenSignInTest` | Token sign-in: users created on first sign-in and found by issuer and subject, username clashes get a suffix, signed-in writes, invalid tokens get `401` |
@@ -398,6 +446,7 @@ src/main/java/com/main/app
 │                      ResourceWriter (create/replace/update/delete/copy for every resource)
 ├── user/              Sign-in (SecurityConfig), CurrentUser and its dev (X-User) and token (JWT)
 │                      implementations, /api/me
+├── importer/          Refreshing default content from the Open5e API
 ├── creature/          creatures, creature types, creature sets
 ├── spell/             spells, spell schools
 ├── item/              items, magic items, item sets, categories, rarities, weapons, weapon properties, armor,
@@ -430,4 +479,7 @@ Dockerfile             Multi-stage build of the app image
   `application.properties` too.
 - **Requests with a token fail with a server error.** The app couldn't reach the token issuer to fetch its keys.
   With `compose.auth.yaml`, check that Keycloak is running (`docker compose -f compose.yaml -f compose.auth.yaml ps`).
+- **The importer stops with "upstream is missing N of M rows".** The API returned much less than the database has,
+  so it refused to delete that much. Check the API; if the deletions are intended, add
+  `--open5e.import.allow-large-deletions=true`.
 - **You want a fresh copy of the data.** Run `docker compose down -v`, then `docker compose up`.
