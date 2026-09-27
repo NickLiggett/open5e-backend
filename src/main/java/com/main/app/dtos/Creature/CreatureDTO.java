@@ -1,5 +1,7 @@
 package com.main.app.dtos.Creature;
 
+import java.util.List;
+
 public record CreatureDTO(
         String key,
         String name,
@@ -9,35 +11,35 @@ public record CreatureDTO(
         Float challengeRating,
         Integer proficiencyBonus,
         CreatureSpeed speed,
-        String speedAll,
+        CreatureSpeed speedAll,
         String category,
         String subcategory,
         String alignment,
-        String languages,
+        CreatureLanguages languages,
         Integer armorClass,
         String armorDetail,
         Integer hitPoints,
         String hitDice,
         Integer experiencePoints,
-        String abilityScores,
-        String modifiers,
+        AbilityScores abilityScores,
+        AbilityScores modifiers,
         Integer initiativeBonus,
-        String savingThrows,
-        String savingThrowsAll,
-        String skillBonuses,
-        String skillBonusesAll,
+        AbilityScores savingThrows,
+        AbilityScores savingThrowsAll,
+        SkillBonuses skillBonuses,
+        SkillBonuses skillBonusesAll,
         Integer passivePerception,
-        String resistancesAndImmunities,
+        ResistancesAndImmunities resistancesAndImmunities,
         Integer normalSightRange,
         Integer darkvisionRange,
         Integer blindsightRange,
         Integer tremorsenseRange,
         Integer truesightRange,
-        String actions,
-        String traits,
-        String creatureSets,
-        String environments,
-        String illustration,
-        String crossreferences
+        List<CreatureAction> actions,
+        List<CreatureTrait> traits,
+        List<String> creatureSets,
+        List<NamedReference> environments,
+        CreatureIllustration illustration,
+        CrossReferences crossreferences
 ) {
 }
