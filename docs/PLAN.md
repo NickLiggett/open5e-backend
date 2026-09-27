@@ -16,15 +16,17 @@ A REST API over the Open5e dataset where:
    documents (`srd-2024`, `a5e-mm`, …) have no owner and are read-only. Each user gets their own document, and
    everything they create goes in it. Keys follow the Open5e `{document}_{slug}` pattern, so user keys can't collide.
 2. **One visibility rule, applied in one place.** A user can see a resource if its document has no owner, they own it,
-   or they're a member of it. Every query goes through a shared base repository that applies this rule, so no endpoint
-   can leak another user's content.
+   or they're a member of it. The rule is a Hibernate filter that is enabled in every session and also applies to
+   loads by key, so every JPA query gets it, including derived repository queries. Resource entities get it by
+   extending `OwnedResource`; `OwnedResourceMappingTest` fails if an entity for a table with a `document_key` doesn't.
+   Native SQL bypasses it, so application code must not query resource tables with native queries.
 3. **Customized copies** live in the user's document with a new key and a `derived_from` link to the original. Lists
    show both.
 4. **Sharing** is per document: `document_members` grants a user `VIEWER` or `EDITOR` access.
 5. **Login comes last.** Services ask a `CurrentUser` interface who is making the request:
-   - `dev` profile: a default dev user, switchable with an `X-User` header. Only allowed under `dev`; the app refuses
-     to start with it enabled in any other profile.
-   - Tests: set directly.
+   - `dev` profile: a default dev user, switchable with an `X-User` header. It exists only under `dev` (Compose and
+     `bootRun` set it); in any other profile requests are anonymous and the header is ignored.
+   - Tests: requests with the `X-User` header under `@ActiveProfiles("dev")`.
    - Later: read from a verified token (Spring OAuth2 resource server with any OIDC provider; Keycloak in Compose for
      local, a hosted provider in production). Only the `CurrentUser` implementation changes.
 6. **`jsonb` columns map straight onto Java records** in the entities (`@JdbcTypeCode(SqlTypes.JSON)`), using a
@@ -51,7 +53,7 @@ don't depend on embedded JSON copies.
 | # | Phase | Status |
 |---|---|---|
 | 1 | **Foundation:** snake_case `jsonb` mapping, creatures to `jsonb`, feature packages, shared records | Done |
-| 2 | **Ownership:** users, `owner_id`, `document_members`, `derived_from`; `CurrentUser` (dev implementation); visibility-aware base repository; isolation tests | |
+| 2 | **Ownership:** users, `owner_id`, `document_members`, `derived_from`; `CurrentUser` (dev implementation); visibility filter; isolation tests | Done |
 | 3 | **Read endpoints** for all resources, with pagination, filters and a shared error handler | |
 | 4 | **Write endpoints:** create/update/delete in own documents, copy-to-customize, sharing | |
 | 5 | **Real login:** token-based `CurrentUser`, Keycloak in Compose | |

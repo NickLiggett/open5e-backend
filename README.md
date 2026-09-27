@@ -1,10 +1,11 @@
 # open5e-backend
 
-A read-only REST API over the [Open5e](https://open5e.com) D&D 5e dataset, built with Spring Boot and PostgreSQL.
+A REST API over the [Open5e](https://open5e.com) D&D 5e dataset, built with Spring Boot and PostgreSQL.
 
-The database holds 33 Open5e tables (creatures, spells, magic items, classes, species, rules, …). The API currently
-exposes **creatures**; the other tables are next. See [docs/PLAN.md](docs/PLAN.md) for the roadmap, including
-user-owned custom content and sharing.
+The database holds 33 Open5e tables (creatures, spells, magic items, classes, species, rules, …). The Open5e content
+is the **default content**, visible to everyone. Users will also be able to add their own content, visible only to
+them and anyone they share it with. The API currently exposes **creatures** (read-only); the other tables, and
+endpoints for creating content, are next. See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 
 ## Tech stack
 
@@ -44,8 +45,9 @@ docker compose up -d db
 ./gradlew bootRun
 ```
 
-`application.properties` already points at the Compose database (`localhost:5434`), so no extra configuration is
-needed. You can also run `com.main.app.Application` from IntelliJ.
+`application.properties` already points at the Compose database (`localhost:5434`), and `bootRun` uses the `dev`
+profile (see [Users in local development](#users-in-local-development)). To run `com.main.app.Application` from
+IntelliJ, set **Active profiles** to `dev` in the run configuration; without it, every request is anonymous.
 
 ### Docker commands
 
@@ -73,15 +75,44 @@ The database uses host port 5434 so it doesn't clash with other local Postgres i
 development credentials only. Override any datasource setting with environment variables such as
 `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD`.
 
+## Users in local development
+
+There is no sign-in yet. Under the `dev` profile, which Compose and `bootRun` use, each request says who it is with
+an `X-User` header:
+
+```sh
+curl http://localhost:8080/api/me                      # {"id":1,"username":"dev"} (no header: the "dev" user)
+curl -H 'X-User: dm' http://localhost:8080/api/me      # {"id":2,"username":"dm"}
+```
+
+- A user is created the first time their name is used. Names are 1-32 lowercase letters, digits or hyphens.
+- Use different names to check what each user can see, e.g. that a player sees a DM's shared content and a stranger
+  doesn't.
+- Anyone can claim any name, so the `dev` profile is for local development only. Without it, the header is ignored
+  and every request is anonymous: only default content is visible and `/api/me` returns `401`.
+
+Real sign-in replaces this in phase 5 without changing the endpoints (see [docs/PLAN.md](docs/PLAN.md)).
+
 ## API
 
-All endpoints are read-only `GET`s.
+All endpoints are `GET`s for now.
 
 | Endpoint | Description |
 |---|---|
-| `GET /api/creatures` | All creatures (3,541 in the current dump; not paginated yet) |
-| `GET /api/creatures/{key}` | One creature by key, e.g. `a5e-mm_aboleth`. Returns `404` if the key doesn't exist |
+| `GET /api/creatures` | All creatures visible to the current user (3,541 defaults in the current dump; not paginated yet) |
+| `GET /api/creatures/{key}` | One creature by key, e.g. `a5e-mm_aboleth`. Returns `404` if it doesn't exist or isn't visible to the current user |
 | `GET /api/creatures/test` | Simple check that the controller is up |
+| `GET /api/me` | The current user, or `401` if nobody is signed in |
+
+### Who can see what
+
+Every resource belongs to a **document**: a source like the SRD (`srd-2024`) or a user's own homebrew. A user can see a
+resource if its document is default content (no owner), they own the document, or it has been shared with them. The
+rule is a Hibernate filter enabled for every database query (`ownership/Visibility`), so endpoints get it without
+doing anything. Content outside a user's view behaves as if it doesn't exist (`404`).
+
+Customized copies of default content carry `derivedFrom`, the key of the resource they were copied from; it is `null`
+for everything else.
 
 Creature responses use camelCase fields, and the stat block is returned as nested JSON objects and arrays:
 document, type, size, speeds, ability scores and modifiers, saving throws, skill bonuses, languages, resistances and
@@ -119,6 +150,7 @@ Flyway manages the `open5e` schema. Migrations are in `src/main/resources/db/mig
 | `V1__create_open5e_schema.sql` | The full `open5e` schema from the dump: 33 tables, indexes and foreign keys |
 | `V2__drop_stray_public_tables.sql` | Drops leftover tables from the `public` schema |
 | `V3__creature_json_columns_to_jsonb.sql` | Converts the creature JSON columns from text to `jsonb`, like every other table |
+| `V4__ownership.sql` | Users, document owners and sharing (`document_members`); `document_key` and `derived_from` on every resource |
 
 - **Restored database (the Compose setup):** Flyway sees an existing schema, records it as V1 without running the
   script, then applies V2 and anything newer.
@@ -128,7 +160,8 @@ Flyway manages the `open5e` schema. Migrations are in `src/main/resources/db/mig
 - Hibernate runs with `ddl-auto=validate`: it checks the entities against the schema at startup and never changes the
   schema itself.
 
-To change the schema, add a new file named `V3__description.sql` (next number), and restart the app. Don't edit
+To change the schema, add a new file with the next version number (e.g. `V5__description.sql`), and restart the
+app. Don't edit
 migrations that have already been applied.
 
 ## Tests
@@ -145,7 +178,12 @@ docker compose up -d db
 | `ApplicationTests` | The Spring context starts, Flyway runs, and Hibernate validates the entities against the schema |
 | `DatabaseJsonTest` | Reading snake_case database JSON into records (no database needed) |
 | `CreatureJsonTest` | camelCase API output, and leaving out absent speeds and skills (no database needed) |
+| `VisibilityTest` | Real requests as different users (`dev` profile): owners and members see a homebrew creature, strangers get `404`, everyone sees default content |
+| `AnonymousVisibilityTest` | Outside `dev`, requests are anonymous and the `X-User` header is ignored |
+| `OwnedResourceMappingTest` | Every entity for a table with a `document_key` extends `OwnedResource`, so the visibility filter covers it |
 | `CreatureDataTest` | Compares every JSON column of every creature in the database with the API objects, so any lost or changed data fails the test. It is skipped if the table is empty. The comparison lives in `JsonColumnRoundTrip`, for reuse by other tables |
+
+The ownership tests add rows (users `zz-test-*` and their documents) and delete them afterwards.
 
 ## Project structure
 
@@ -154,8 +192,11 @@ src/main/java/com/main/app
 ├── Application.java
 ├── common/            Records shared across resources (NamedReference, DocumentSummary, …)
 │   └── json/          Database JSON mapping (snake_case mapper, Hibernate config)
-└── creature/          Everything for /api/creatures: entity, repository, service, controller,
-                       CreatureDTO and its nested records
+├── creature/          Everything for /api/creatures: entity, repository, service, controller,
+│                      CreatureDTO and its nested records
+├── document/          The Document entity; defines the visibility filter
+├── ownership/         OwnedResource (base class for resource entities) and the visibility rule
+└── user/              CurrentUser and its implementations, /api/me
 src/main/resources
 ├── application.properties
 └── db/migration/      Flyway migrations

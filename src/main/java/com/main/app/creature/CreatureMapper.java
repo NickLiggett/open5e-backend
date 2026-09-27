@@ -13,7 +13,8 @@ public class CreatureMapper {
         return new CreatureDTO(
                 creature.getKey(),
                 creature.getName(),
-                creature.getDocument(),
+                creature.getDocument().toSummary(),
+                creature.getDerivedFrom(),
                 creature.getType(),
                 creature.getSize(),
                 creature.getChallengeRating(),

@@ -1,9 +1,9 @@
 package com.main.app.creature;
 
 import com.main.app.common.CrossReferences;
-import com.main.app.common.DocumentSummary;
 import com.main.app.common.ImageReference;
 import com.main.app.common.NamedReference;
+import com.main.app.ownership.OwnedResource;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -14,24 +14,18 @@ import java.util.List;
 
 /**
  * A creature stat block. The {@code jsonb} columns are mapped onto records by Hibernate (see
- * {@link com.main.app.common.json.HibernateJsonConfig}).
+ * {@link com.main.app.common.json.HibernateJsonConfig}). Key, document and derived-from come from
+ * {@link OwnedResource}. The table's embedded {@code document} JSON is not mapped; the document is read from the
+ * documents table instead.
  */
 @Getter
 @Setter
 @Entity
 @Table(name = "creatures", schema = "open5e")
-public class Creature {
-
-    @Id
-    @Column(name = "key")
-    private String key;
+public class Creature extends OwnedResource {
 
     @Column(name = "name", nullable = false)
     private String name;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "document")
-    private DocumentSummary document;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "type")
@@ -160,6 +154,6 @@ public class Creature {
     }
 
     public Creature(String key) {
-        this.key = key;
+        setKey(key);
     }
 }

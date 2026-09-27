@@ -39,3 +39,8 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+// Local runs use the dev profile (X-User header sign-in); override with --args='--spring.profiles.active=...'.
+tasks.named('bootRun') {
+	systemProperty 'spring.profiles.active', 'dev'
+}

@@ -29,6 +29,8 @@ services:
       db:
         condition: service_healthy
     environment:
+      # Dev sign-in: choose the user per request with the X-User header (see README).
+      SPRING_PROFILES_ACTIVE: dev
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/open5e
       SPRING_DATASOURCE_USERNAME: nick
       SPRING_DATASOURCE_PASSWORD: open5e

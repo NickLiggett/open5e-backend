@@ -11,6 +11,7 @@ public record CreatureDTO(
         String key,
         String name,
         DocumentSummary document,
+        String derivedFrom,
         NamedReference type,
         NamedReference size,
         Float challengeRating,
