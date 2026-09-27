@@ -1,4 +1,4 @@
 package com.main.app.dtos.Creature;
 
-public class CreatureSize {
+public record CreatureSize(String key, String name) {
 }

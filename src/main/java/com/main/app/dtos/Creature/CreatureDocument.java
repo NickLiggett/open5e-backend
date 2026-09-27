@@ -1,18 +1,5 @@
 package com.main.app.dtos.Creature;
 
-public class CreatureDocument {
-
-    private String key;
-    private String name;
-    private String type;
-    private String permalink;
-    private String publisher;
-    private String gameSystem;
-    private String displayName;
-
-    public CreatureDocument() {}
-}
-
 /*{
 "key": "a5e-mm",
 "name": "Monstrous Menagerie",
@@ -22,3 +9,13 @@ public class CreatureDocument {
 "gamesystem": {"key": "a5e", "name": "Advanced 5th Edition"},
 "display_name": "Monstrous Menagerie"
 }*/
+public record CreatureDocument(
+        String key,
+        String name,
+        String type,
+        String permalink,
+        NamedReference publisher,
+        NamedReference gamesystem,
+        String displayName
+) {
+}

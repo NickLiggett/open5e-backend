@@ -1,4 +1,4 @@
 package com.main.app.dtos.Creature;
 
-public class CreatureType {
+public record CreatureType(String key, String name) {
 }

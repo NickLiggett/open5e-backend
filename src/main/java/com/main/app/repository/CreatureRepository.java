@@ -1,4 +1,4 @@
-package com.main.app.respository;
+package com.main.app.repository;
 
 import com.main.app.entity.Creature;
 import org.springframework.data.jpa.repository.JpaRepository;

@@ -1,7 +1,7 @@
 package com.main.app.service;
 
-import com.main.app.entity.Creature;
-import com.main.app.respository.CreatureRepository;
+import com.main.app.dtos.Creature.CreatureDTO;
+import com.main.app.repository.CreatureRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -11,18 +11,20 @@ import java.util.Optional;
 public class CreatureService {
 
     private final CreatureRepository creatureRepository;
+    private final CreatureMapper creatureMapper;
 
-    public CreatureService(CreatureRepository creatureRepository) {
+    public CreatureService(CreatureRepository creatureRepository, CreatureMapper creatureMapper) {
         this.creatureRepository = creatureRepository;
+        this.creatureMapper = creatureMapper;
     }
 
-    public List<Creature> getAllCreatures() {
-        return creatureRepository.findAll();
+    public List<CreatureDTO> getAllCreatures() {
+        return creatureRepository.findAll().stream()
+                .map(creatureMapper::toDto)
+                .toList();
     }
 
-    public Optional<Creature> getCreatureByKey(String id) {
-        System.out.println("Service: " + id);
-        return creatureRepository.findById(id);
+    public Optional<CreatureDTO> getCreatureByKey(String key) {
+        return creatureRepository.findById(key).map(creatureMapper::toDto);
     }
-    // ...
 }
