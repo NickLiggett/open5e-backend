@@ -1,0 +1,65 @@
+{
+  "key": "a5e-ag_accelerando",
+  "document": {
+    "name": "Adventurer's Guide",
+    "key": "a5e-ag",
+    "type": "SOURCE",
+    "display_name": "Adventurer's Guide",
+    "publisher": {
+      "name": "EN Publishing",
+      "key": "en-publishing"
+    },
+    "gamesystem": {
+      "name": "Advanced 5th Edition",
+      "key": "a5e"
+    },
+    "permalink": "https://a5esrd.com/a5esrd"
+  },
+  "casting_options": [
+    {
+      "type": "default",
+      "damage_roll": null,
+      "target_count": null,
+      "duration": null,
+      "range": null,
+      "concentration": null,
+      "shape_size": null,
+      "desc": null
+    }
+  ],
+  "school": {
+    "name": "Transmutation",
+    "key": "transmutation"
+  },
+  "classes": [],
+  "range_unit": "feet",
+  "shape_size_unit": "feet",
+  "name": "Accelerando",
+  "desc": "You play a complex and quick up-tempo piece that gradually gets faster and more complex, instilling the targets with its speed. You cannot cast another spell through your spellcasting focus while concentrating on this spell.\n\nUntil the spell ends, targets gain cumulative benefits the longer you maintain concentration on this spell (including the turn you cast it).\n\n* **1 Round:** Double Speed.\n* **2 Rounds:** +2 bonus to AC.\n* **3 Rounds:** Advantage on Dexterity saving throws.\n* **4 Rounds:** An additional action each turn. This action can be used only to take the Attack (one weapon attack only), Dash, Disengage, Hide, or Use an Object action.\n\nWhen the spell ends, a target can't move or take actions until after its next turn as the impact of their frenetic speed catches up to it.",
+  "level": 4,
+  "higher_level": "You may maintain concentration on this spell for an additional 2 rounds for each slot level above 4th.",
+  "target_type": "object",
+  "range_text": "30 feet",
+  "range": 30,
+  "ritual": false,
+  "casting_time": "action",
+  "reaction_condition": null,
+  "verbal": true,
+  "somatic": true,
+  "material": true,
+  "material_specified": "",
+  "material_cost": null,
+  "material_consumed": false,
+  "target_count": 1,
+  "saving_throw_ability": "dexterity",
+  "attack_roll": false,
+  "damage_roll": "",
+  "damage_types": [],
+  "duration": "6 rounds",
+  "shape_type": null,
+  "shape_size": null,
+  "concentration": true,
+  "crossreferences": {
+    "to": []
+  }
+}

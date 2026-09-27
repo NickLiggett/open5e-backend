@@ -1,0 +1,36 @@
+{
+  "key": "srd-2024_acid",
+  "name": "Acid",
+  "desc": "When you take the Attack action, you can replace one of your attacks with throwing a vial of Acid. Target one creature or object you can see within 20 feet of yourself. The target must succeed on a Dexterity saving throw (DC 8 plus your Dexterity modifier and Proficiency Bonus) or take 2d6 Acid damage.",
+  "category": {
+    "name": "Weapon",
+    "key": "weapon"
+  },
+  "weapon": null,
+  "armor": null,
+  "size": {
+    "name": "Tiny",
+    "key": "tiny"
+  },
+  "weight": "1.000",
+  "weight_unit": "lb",
+  "cost": "25.00",
+  "document": {
+    "name": "System Reference Document 5.2",
+    "key": "srd-2024",
+    "type": "SOURCE",
+    "display_name": "5e 2024 Rules",
+    "publisher": {
+      "name": "Wizards of the Coast",
+      "key": "wizards-of-the-coast"
+    },
+    "gamesystem": {
+      "name": "5th Edition 2024",
+      "key": "5e-2024"
+    },
+    "permalink": "https://dnd.wizards.com/resources/systems-reference-document"
+  },
+  "crossreferences": {
+    "to": []
+  }
+}

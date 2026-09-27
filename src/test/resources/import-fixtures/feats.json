@@ -1,0 +1,46 @@
+{
+  "key": "a5e-ag_ace-driver",
+  "has_prerequisite": true,
+  "benefits": [
+    {
+      "desc": "You gain an expertise die on ability checks made to drive or pilot a vehicle."
+    },
+    {
+      "desc": "While piloting a vehicle, you can use your reaction to take the Brake or Maneuver vehicle actions."
+    },
+    {
+      "desc": "A vehicle you load can carry 25% more cargo than normal."
+    },
+    {
+      "desc": "Vehicles you are piloting only suffer a malfunction when reduced to 25% of their hit points, not 50%. In addition, when the vehicle does suffer a malfunction, you roll twice on the maneuver table and choose which die to use for the result."
+    },
+    {
+      "desc": "Vehicles you are piloting gain a bonus to their Armor Class equal to half your proficiency bonus."
+    },
+    {
+      "desc": "When you Brake, you can choose to immediately stop the vehicle without traveling half of its movement speed directly forward."
+    }
+  ],
+  "document": {
+    "name": "Adventurer's Guide",
+    "key": "a5e-ag",
+    "type": "SOURCE",
+    "display_name": "Adventurer's Guide",
+    "publisher": {
+      "name": "EN Publishing",
+      "key": "en-publishing"
+    },
+    "gamesystem": {
+      "name": "Advanced 5th Edition",
+      "key": "a5e"
+    },
+    "permalink": "https://a5esrd.com/a5esrd"
+  },
+  "name": "Ace Driver",
+  "desc": "You are a virtuoso of driving and piloting vehicles, able to push them beyond their normal limits and maneuver them with fluid grace through hazardous situations. You gain the following benefits:",
+  "prerequisite": "Proficiency with a type of vehicle",
+  "type": "GENERAL",
+  "crossreferences": {
+    "to": []
+  }
+}

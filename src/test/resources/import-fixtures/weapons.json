@@ -1,0 +1,47 @@
+{
+  "key": "srd-2024_battleaxe",
+  "document": {
+    "name": "System Reference Document 5.2",
+    "key": "srd-2024",
+    "type": "SOURCE",
+    "display_name": "5e 2024 Rules",
+    "publisher": {
+      "name": "Wizards of the Coast",
+      "key": "wizards-of-the-coast"
+    },
+    "gamesystem": {
+      "name": "5th Edition 2024",
+      "key": "5e-2024"
+    },
+    "permalink": "https://dnd.wizards.com/resources/systems-reference-document"
+  },
+  "properties": [
+    {
+      "property": {
+        "name": "Topple",
+        "type": "Mastery",
+        "desc": "If you hit a creature with this weapon, you can force the creature to make a Constitution saving throw (DC 8 plus the ability modifier used to make the attack roll and your Proficiency Bonus). On a failed save, the creature has the Prone condition."
+      },
+      "detail": null
+    },
+    {
+      "property": {
+        "name": "Versatile",
+        "type": null,
+        "desc": "A Versatile weapon can be used with one or two hands. A damage value in parentheses appears with the property. The weapon deals that damage when used with two hands to make a melee attack."
+      },
+      "detail": "1d10"
+    }
+  ],
+  "damage_type": {
+    "name": "Slashing",
+    "key": "slashing"
+  },
+  "distance_unit": "feet",
+  "name": "Battleaxe",
+  "damage_dice": "1d8",
+  "range": 0,
+  "long_range": 0,
+  "is_simple": false,
+  "is_improvised": false
+}

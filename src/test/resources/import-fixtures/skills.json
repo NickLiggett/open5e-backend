@@ -1,0 +1,13 @@
+{
+  "key": "a5e-ag_culture",
+  "descriptions": [
+    {
+      "desc": "A Culture check allows a character to know the customs, laws, trade in regional products, and etiquette of cultures other than their own (a character is presumed to know about their own culture and background without requiring an ability check). Culture can also be used to communicate simple concepts with creatures whose language is unknown to a character. The most commonly used ability score is Intelligence. A character might use Wisdom to avoid social blunders, Dexterity to perform an unfamiliar dance, or Charisma to track down a seller of a hard-to-find item.\nSpecialties: courtly manners, etiquette, laws, linguistics, regional goods, streetwise, trade.",
+      "document": "a5e-ag",
+      "gamesystem": "a5e"
+    }
+  ],
+  "name": "Culture",
+  "document": "a5e-ag",
+  "ability": "int"
+}

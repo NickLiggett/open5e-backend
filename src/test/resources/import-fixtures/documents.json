@@ -1,0 +1,30 @@
+{
+  "key": "a5e-ag",
+  "licenses": [
+    {
+      "name": "Creative Commons Attribution 4.0",
+      "key": "cc-by-40"
+    },
+    {
+      "name": "OPEN GAME LICENSE Version 1.0a",
+      "key": "ogl-10a"
+    }
+  ],
+  "publisher": {
+    "name": "EN Publishing",
+    "key": "en-publishing"
+  },
+  "gamesystem": {
+    "name": "Advanced 5th Edition",
+    "key": "a5e"
+  },
+  "display_name": "Adventurer's Guide",
+  "name": "Adventurer's Guide",
+  "desc": "In this guide to Level Up, the advanced roleplaying game, you will find everything you need to play. Create diverse and unique heroes, engage in epic combat with villainous foes, cast powerful spells, and build mighty strongholds!",
+  "type": "SOURCE",
+  "author": "EN Publishing",
+  "publication_date": "2021-11-01T00:00:00",
+  "permalink": "https://a5esrd.com/a5esrd",
+  "distance_unit": "feet",
+  "weight_unit": "lb"
+}

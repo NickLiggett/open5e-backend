@@ -1,0 +1,45 @@
+{
+  "key": "open5e_stoor-halfling",
+  "is_subspecies": true,
+  "document": {
+    "name": "Open5e Originals",
+    "key": "open5e",
+    "type": "SOURCE",
+    "display_name": "Open5e Originals",
+    "publisher": {
+      "name": "Open5e",
+      "key": "open5e"
+    },
+    "gamesystem": {
+      "name": "5th Edition 2014",
+      "key": "5e-2014"
+    },
+    "permalink": "https://open5e.com/"
+  },
+  "traits": [
+    {
+      "name": "Ability Score Increase",
+      "desc": "**_Ability Score Increase._** Your Constitution score increases by 1.",
+      "type": null,
+      "order": null,
+      "crossreferences": {
+        "to": []
+      }
+    },
+    {
+      "name": "Stoor Hardiness",
+      "desc": "You gain resistance to poison damage, and you make saving throws against poison with advantage.",
+      "type": null,
+      "order": null,
+      "crossreferences": {
+        "to": []
+      }
+    }
+  ],
+  "name": "Stoor Halfling",
+  "desc": "Stoor halflings earn their moniker from an archaic word for \"strong\" or \"large,\" and indeed the average stoor towers some six inches taller than their lightfoot cousins. They are also particularly hardy by halfling standards, famous for being able to hold down the strongest dwarven ales, for which they have also earned a reputation of relative boorishness. Still, most stoor halflings are good natured and simple folk, and any lightfoot would be happy to have a handful of stoor cousins to back them up in a barroom brawl.",
+  "subspecies_of": "srd_halfling",
+  "crossreferences": {
+    "to": []
+  }
+}

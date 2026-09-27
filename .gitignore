@@ -35,3 +35,6 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Local database dump (see README) ###
+docker/postgres/*.dump

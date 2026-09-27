@@ -1,0 +1,33 @@
+{
+  "key": "chaotic-evil",
+  "morality": "evil",
+  "societal_attitude": "chaotic",
+  "short_name": "CE",
+  "descriptions": [
+    {
+      "desc": "Chaotic evil (CE) creatures act with arbitrary violence, spurred by their greed, hatred, or bloodlust. Demons, red dragons, and orcs are chaotic evil.",
+      "document": "srd-2014",
+      "gamesystem": "5e-2014"
+    },
+    {
+      "desc": "Chaotic Evil creatures act with arbitrary violence, spurred by their hatred or bloodlust. A villain pursuing schemes of vengeance and havoc is probably Chaotic Evil.",
+      "document": "srd-2024",
+      "gamesystem": "5e-2024"
+    }
+  ],
+  "document": {
+    "name": "5e Core Concepts",
+    "key": "core",
+    "type": "MISC",
+    "display_name": "5e Core",
+    "publisher": {
+      "name": "Open5e",
+      "key": "open5e"
+    },
+    "gamesystem": {
+      "name": "5th Edition 2014",
+      "key": "5e-2014"
+    },
+    "permalink": "https://dnd.wizards.com/resources/systems-reference-document"
+  }
+}

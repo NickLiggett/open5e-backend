@@ -1,0 +1,117 @@
+{
+  "key": "cha",
+  "descriptions": [
+    {
+      "desc": "Charisma is used in social situations to determine first impressions, to fit in or stand out, and to influence others.",
+      "document": "a5e-ag",
+      "gamesystem": "a5e"
+    },
+    {
+      "desc": "Charisma measures your ability to interact effectively with others. It includes such factors as confidence and eloquence, and it can represent a charming or commanding personality.\r\n\r\n### Charisma Checks\r\n\r\nA Charisma check might arise when you try to influence or entertain others, when you try to make an impression or tell a convincing lie, or when you are navigating a tricky social situation. The Deception, Intimidation, Performance, and Persuasion skills reflect aptitude in certain kinds of Charisma checks.\r\n\r\n**Deception.** Your Charisma (Deception) check determines whether you can convincingly hide the truth, either verbally or through your actions. This deception can encompass everything from misleading others through ambiguity to telling outright lies. Typical situations include trying to fast-­talk a guard, con a merchant, earn money through gambling, pass yourself off in a disguise, dull someone’s suspicions with false assurances, or maintain a straight face while telling a blatant lie.\r\n\r\n**Intimidation.** When you attempt to influence someone through overt threats, hostile actions, and physical violence, the GM might ask you to make a Charisma (Intimidation) check. Examples include trying to pry information out of a prisoner, convincing street thugs to back down from a confrontation, or using the edge of a broken bottle to convince a sneering vizier to reconsider a decision. \r\n\r\n**Performance.** Your Charisma (Performance) check determines how well you can delight an audience with music, dance, acting, storytelling, or some other form of entertainment. \r\n\r\n**Persuasion.** When you attempt to influence someone or a group of people with tact, social graces, or good nature, the GM might ask you to make a Charisma (Persuasion) check. Typically, you use persuasion when acting in good faith, to foster friendships, make cordial requests, or exhibit proper etiquette. Examples of persuading others include convincing a chamberlain to let your party see the king, negotiating peace between warring tribes, or inspiring a crowd of townsfolk.\r\n\r\n**Other Charisma Checks.** The GM might call for a Charisma check when you try to accomplish tasks like the following: \r\n* Find the best person to talk to for news, rumors, and gossip\r\n* Blend into a crowd to get the sense of key topics of conversation\r\n\r\n### Spellcasting Ability\r\nBards, paladins, sorcerers, and warlocks use Charisma as their spellcasting ability, which helps determine the saving throw DCs of spells they cast.",
+      "document": "srd-2014",
+      "gamesystem": "5e-2014"
+    },
+    {
+      "desc": "Confidence, poise, and charm",
+      "document": "srd-2024",
+      "gamesystem": "5e-2024"
+    }
+  ],
+  "skills": [
+    {
+      "key": "deception",
+      "descriptions": [
+        {
+          "desc": "The Deception skill is used when a character lies, misleads, or hides the truth whether verbally or otherwise. This ability check may be made against a DC set by the Narrator or may be opposed by a target's Insight check. The most commonly used ability score is Charisma. A character might use Intelligence to compose a cipher or Constitution to conceal the effect of a wound or attack.\nSpecialties: boasting, ciphers, concealing emotions, mimicry.",
+          "document": "a5e-ag",
+          "gamesystem": "a5e"
+        },
+        {
+          "desc": "Your Charisma (Deception) check determines whether you can convincingly hide the truth, either verbally or through your actions. This deception can encompass everything from misleading others through ambiguity to telling outright lies. Typical situations include trying to fast-­talk a guard, con a merchant, earn money through gambling, pass yourself off in a disguise, dull someone’s suspicions with false assurances, or maintain a straight face while telling a blatant lie.",
+          "document": "srd-2014",
+          "gamesystem": "5e-2014"
+        },
+        {
+          "desc": "Tell a convincing lie, or wear a disguise convincingly.",
+          "document": "srd-2024",
+          "gamesystem": "5e-2024"
+        }
+      ],
+      "name": "Deception",
+      "document": "core",
+      "ability": "cha"
+    },
+    {
+      "key": "intimidation",
+      "descriptions": [
+        {
+          "desc": "A character makes an Intimidation check to alter someone's behavior by frightening or threatening them. A single Intimidation check can also be used as part of an interrogation, though further checks rarely offer different results. The Narrator sets the DC of the check based on the target's bravery and the circumstances of the check; some creatures can't be intimidated. The most commonly used ability scores for Intimidation checks are Charisma (for verbal threats) and Strength (for physical threats). A character might use Wisdom to discern a creature's weak point, and a spellcaster might use their spellcasting ability score to summon frightening energies.\nSpecialties: authority, ferocity, interrogation, subtle threats, weapon displays.",
+          "document": "a5e-ag",
+          "gamesystem": "a5e"
+        },
+        {
+          "desc": "When you attempt to influence someone through overt threats, hostile actions, and physical violence, the GM might ask you to make a Charisma (Intimidation) check. Examples include trying to pry information out of a prisoner, convincing street thugs to back down from a confrontation, or using the edge of a broken bottle to convince a sneering vizier to reconsider a decision.",
+          "document": "srd-2014",
+          "gamesystem": "5e-2014"
+        },
+        {
+          "desc": "Awe or threaten someone into doing what you want.",
+          "document": "srd-2024",
+          "gamesystem": "5e-2024"
+        }
+      ],
+      "name": "Intimidation",
+      "document": "core",
+      "ability": "cha"
+    },
+    {
+      "key": "performance",
+      "descriptions": [
+        {
+          "desc": "A Performance check allows a character to entertain an audience with singing, acting, or the like. It also allows a character to write or compose music, literature, or other artistic endeavors to entertain future audiences. The most commonly used ability score is Charisma, especially for performances before an audience. Writing, composing, or painting might instead use Intelligence or Wisdom. A display of martial prowess might require Dexterity or Strength. \nSpecialties: acting, composing, dancing, fine art, singing, speaking, writing.",
+          "document": "a5e-ag",
+          "gamesystem": "a5e"
+        },
+        {
+          "desc": "Your Charisma (Performance) check determines how well you can delight an audience with music, dance, acting, storytelling, or some other form of entertainment.",
+          "document": "srd-2014",
+          "gamesystem": "5e-2014"
+        },
+        {
+          "desc": "Act, tell a story, perform music, or dance.",
+          "document": "srd-2024",
+          "gamesystem": "5e-2024"
+        }
+      ],
+      "name": "Performance",
+      "document": "core",
+      "ability": "cha"
+    },
+    {
+      "key": "persuasion",
+      "descriptions": [
+        {
+          "desc": "A character makes a Persuasion check to convince or influence someone through logic, flattery, or negotiation (unlike a Deception check, a Persuasion check is made in some degree of good faith.) The Narrator sets the DC of the Persuasion check based on what the character is asking for and how the target feels about the character; some persuasion attempts may be impossible. The most commonly used ability score is Charisma. Wisdom might be used for gauging what offers would sway a creature, or Intelligence if it is a matter entirely about logic.\nSpecialties: bribery, flattery, leadership, negotiation, peacemaking.",
+          "document": "a5e-ag",
+          "gamesystem": "a5e"
+        },
+        {
+          "desc": "When you attempt to influence someone or a group of people with tact, social graces, or good nature, the GM might ask you to make a Charisma (Persuasion) check. Typically, you use persuasion when acting in good faith, to foster friendships, make cordial requests, or exhibit proper etiquette. Examples of persuading others include convincing a chamberlain to let your party see the king, negotiating peace between warring tribes, or inspiring a crowd of townsfolk.",
+          "document": "srd-2014",
+          "gamesystem": "5e-2014"
+        },
+        {
+          "desc": "Honestly and graciously convince someone of something.",
+          "document": "srd-2024",
+          "gamesystem": "5e-2024"
+        }
+      ],
+      "name": "Persuasion",
+      "document": "core",
+      "ability": "cha"
+    }
+  ],
+  "name": "Charisma",
+  "short_desc": "measuring force of personality",
+  "document": "core"
+}

@@ -1,0 +1,22 @@
+{
+  "name": "Blinded",
+  "key": "elderberry_blinded",
+  "file_url": "/static/img/object_icons/elderberry-inn-icons/conditions/blinded.svg",
+  "alt_text": "An icon representing the blinded condition in an RPG. A simple, abstract black-and-white icon of an eye with a line crossed through it.",
+  "attribution": "Designed with love by Anaislalovi (@anaislalovi) for Elderberry Inn.",
+  "document": {
+    "name": "Elderberry Inn Icons",
+    "key": "elderberry-inn-icons",
+    "type": "MISC",
+    "display_name": "Elderberry Inn Icons",
+    "publisher": {
+      "name": "Open5e",
+      "key": "open5e"
+    },
+    "gamesystem": {
+      "name": "5th Edition 2014",
+      "key": "5e-2014"
+    },
+    "permalink": "https://github.com/anaislalovi/dnd5e-icons"
+  }
+}

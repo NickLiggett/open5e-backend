@@ -1,0 +1,17 @@
+{
+  "key": "acid",
+  "descriptions": [
+    {
+      "desc": "The corrosive spray of a black dragon’s breath and the dissolving enzymes secreted by a black pudding deal acid damage.",
+      "document": "srd-2014",
+      "gamesystem": "5e-2014"
+    },
+    {
+      "desc": "Corrosive liquids, digestive enzymes",
+      "document": "srd-2024",
+      "gamesystem": "5e-2024"
+    }
+  ],
+  "name": "Acid",
+  "document": "core"
+}

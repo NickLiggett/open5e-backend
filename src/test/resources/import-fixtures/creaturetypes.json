@@ -1,0 +1,22 @@
+{
+  "key": "aberration",
+  "descriptions": [
+    {
+      "desc": "Aberrations are unnatural beings that don’t belong to this plane of existence. Many aberrations are telepathic and use a mental power known as psionic power instead of magic. An aboleth is an aberration.",
+      "document": "a5e-mm",
+      "gamesystem": "a5e"
+    },
+    {
+      "desc": "Aberrations are utterly alien beings. Many of them have innate magical abilities drawn from the creature’s alien mind rather than the mystical forces of the world. The quintessential aberrations are aboleths, beholders, mind flayers, and slaadi.",
+      "document": "srd-2014",
+      "gamesystem": "5e-2014"
+    },
+    {
+      "desc": "Aberrations are utterly alien beings, such as aboleths and cloakers.",
+      "document": "srd-2024",
+      "gamesystem": "5e-2024"
+    }
+  ],
+  "name": "Aberration",
+  "document": "core"
+}
