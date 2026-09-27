@@ -1,4 +1,4 @@
-package com.main.app.dtos.Creature;
+package com.main.app.creature;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 

@@ -1,7 +1,5 @@
-package com.main.app.service;
+package com.main.app.creature;
 
-import com.main.app.dtos.Creature.CreatureDTO;
-import com.main.app.repository.CreatureRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

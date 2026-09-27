@@ -3,7 +3,8 @@
 A read-only REST API over the [Open5e](https://open5e.com) D&D 5e dataset, built with Spring Boot and PostgreSQL.
 
 The database holds 33 Open5e tables (creatures, spells, magic items, classes, species, rules, …). The API currently
-exposes **creatures**; the other tables are next.
+exposes **creatures**; the other tables are next. See [docs/PLAN.md](docs/PLAN.md) for the roadmap, including
+user-owned custom content and sharing.
 
 ## Tech stack
 
@@ -117,10 +118,13 @@ Flyway manages the `open5e` schema. Migrations are in `src/main/resources/db/mig
 |---|---|
 | `V1__create_open5e_schema.sql` | The full `open5e` schema from the dump: 33 tables, indexes and foreign keys |
 | `V2__drop_stray_public_tables.sql` | Drops leftover tables from the `public` schema |
+| `V3__creature_json_columns_to_jsonb.sql` | Converts the creature JSON columns from text to `jsonb`, like every other table |
 
 - **Restored database (the Compose setup):** Flyway sees an existing schema, records it as V1 without running the
   script, then applies V2 and anything newer.
 - **Empty database:** Flyway runs every migration and creates an empty schema. Data comes from the dump.
+- `jsonb` columns map straight onto Java records in the entities (`@JdbcTypeCode(SqlTypes.JSON)`). Hibernate reads
+  them with the snake_case mapper in `common/json/DatabaseJson`; API responses use Spring's camelCase mapper.
 - Hibernate runs with `ddl-auto=validate`: it checks the entities against the schema at startup and never changes the
   schema itself.
 
@@ -139,23 +143,24 @@ docker compose up -d db
 | Test | What it checks |
 |---|---|
 | `ApplicationTests` | The Spring context starts, Flyway runs, and Hibernate validates the entities against the schema |
-| `CreatureMapperTest` | Unit tests for converting creature rows to response objects (no database needed) |
-| `CreatureMapperDataTest` | Converts every JSON column of every creature in the database and compares the result with the original, so any lost or changed data fails the test. It is skipped if the table is empty |
+| `DatabaseJsonTest` | Reading snake_case database JSON into records (no database needed) |
+| `CreatureJsonTest` | camelCase API output, and leaving out absent speeds and skills (no database needed) |
+| `CreatureDataTest` | Compares every JSON column of every creature in the database with the API objects, so any lost or changed data fails the test. It is skipped if the table is empty. The comparison lives in `JsonColumnRoundTrip`, for reuse by other tables |
 
 ## Project structure
 
 ```
 src/main/java/com/main/app
 ├── Application.java
-├── controller/        REST controllers
-├── dtos/Creature/     Response records (CreatureDTO and its nested types)
-├── entity/            JPA entities
-├── repository/        Spring Data repositories
-└── service/           Services and CreatureMapper (entity → DTO)
+├── common/            Records shared across resources (NamedReference, DocumentSummary, …)
+│   └── json/          Database JSON mapping (snake_case mapper, Hibernate config)
+└── creature/          Everything for /api/creatures: entity, repository, service, controller,
+                       CreatureDTO and its nested records
 src/main/resources
 ├── application.properties
 └── db/migration/      Flyway migrations
 docker/postgres/       Dump restore script (and the dump, which is not committed)
+docs/PLAN.md           Roadmap and design decisions
 compose.yaml           Local app + database stack
 Dockerfile             Multi-stage build of the app image
 ```

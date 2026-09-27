@@ -1,13 +1,18 @@
-package com.main.app.dtos.Creature;
+package com.main.app.creature;
+
+import com.main.app.common.CrossReferences;
+import com.main.app.common.DocumentSummary;
+import com.main.app.common.ImageReference;
+import com.main.app.common.NamedReference;
 
 import java.util.List;
 
 public record CreatureDTO(
         String key,
         String name,
-        CreatureDocument document,
-        CreatureType type,
-        CreatureSize size,
+        DocumentSummary document,
+        NamedReference type,
+        NamedReference size,
         Float challengeRating,
         Integer proficiencyBonus,
         CreatureSpeed speed,
@@ -39,7 +44,7 @@ public record CreatureDTO(
         List<CreatureTrait> traits,
         List<String> creatureSets,
         List<NamedReference> environments,
-        CreatureIllustration illustration,
+        ImageReference illustration,
         CrossReferences crossreferences
 ) {
 }

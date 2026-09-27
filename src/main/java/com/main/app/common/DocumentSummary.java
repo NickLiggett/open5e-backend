@@ -1,4 +1,4 @@
-package com.main.app.dtos.Creature;
+package com.main.app.common;
 
 /*{
 "key": "a5e-mm",
@@ -9,7 +9,7 @@ package com.main.app.dtos.Creature;
 "gamesystem": {"key": "a5e", "name": "Advanced 5th Edition"},
 "display_name": "Monstrous Menagerie"
 }*/
-public record CreatureDocument(
+public record DocumentSummary(
         String key,
         String name,
         String type,

@@ -1,4 +1,6 @@
-package com.main.app.dtos.Creature;
+package com.main.app.creature;
+
+import com.main.app.common.NamedReference;
 
 import java.util.List;
 

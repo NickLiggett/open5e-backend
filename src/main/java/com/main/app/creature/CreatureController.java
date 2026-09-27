@@ -1,7 +1,5 @@
-package com.main.app.controller;
+package com.main.app.creature;
 
-import com.main.app.dtos.Creature.CreatureDTO;
-import com.main.app.service.CreatureService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;

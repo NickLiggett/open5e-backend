@@ -1,9 +1,21 @@
-package com.main.app.entity;
+package com.main.app.creature;
 
+import com.main.app.common.CrossReferences;
+import com.main.app.common.DocumentSummary;
+import com.main.app.common.ImageReference;
+import com.main.app.common.NamedReference;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
+import java.util.List;
+
+/**
+ * A creature stat block. The {@code jsonb} columns are mapped onto records by Hibernate (see
+ * {@link com.main.app.common.json.HibernateJsonConfig}).
+ */
 @Getter
 @Setter
 @Entity
@@ -17,14 +29,17 @@ public class Creature {
     @Column(name = "name", nullable = false)
     private String name;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "document")
-    private String document;
+    private DocumentSummary document;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "type")
-    private String type;
+    private NamedReference type;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "size")
-    private String size;
+    private NamedReference size;
 
     @Column(name = "challenge_rating")
     private Float challengeRating;
@@ -32,11 +47,13 @@ public class Creature {
     @Column(name = "proficiency_bonus")
     private Integer proficiencyBonus;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "speed")
-    private String speed;
+    private CreatureSpeed speed;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "speed_all")
-    private String speedAll;
+    private CreatureSpeed speedAll;
 
     @Column(name = "category")
     private String category;
@@ -47,8 +64,9 @@ public class Creature {
     @Column(name = "alignment")
     private String alignment;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "languages")
-    private String languages;
+    private CreatureLanguages languages;
 
     @Column(name = "armor_class")
     private Integer armorClass;
@@ -65,32 +83,39 @@ public class Creature {
     @Column(name = "experience_points")
     private Integer experiencePoints;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "ability_scores")
-    private String abilityScores;
+    private AbilityScores abilityScores;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "modifiers")
-    private String modifiers;
+    private AbilityScores modifiers;
 
     @Column(name = "initiative_bonus")
     private Integer initiativeBonus;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "saving_throws")
-    private String savingThrows;
+    private AbilityScores savingThrows;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "saving_throws_all")
-    private String savingThrowsAll;
+    private AbilityScores savingThrowsAll;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "skill_bonuses")
-    private String skillBonuses;
+    private SkillBonuses skillBonuses;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "skill_bonuses_all")
-    private String skillBonusesAll;
+    private SkillBonuses skillBonusesAll;
 
     @Column(name = "passive_perception")
     private Integer passivePerception;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "resistances_and_immunities")
-    private String resistancesAndImmunities;
+    private ResistancesAndImmunities resistancesAndImmunities;
 
     @Column(name = "normal_sight_range")
     private Integer normalSightRange;
@@ -107,23 +132,29 @@ public class Creature {
     @Column(name = "truesight_range")
     private Integer truesightRange;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "actions")
-    private String actions;
+    private List<CreatureAction> actions;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "traits")
-    private String traits;
+    private List<CreatureTrait> traits;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "creaturesets")
-    private String creatureSets;
+    private List<String> creatureSets;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "environments")
-    private String environments;
+    private List<NamedReference> environments;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "illustration")
-    private String illustration;
+    private ImageReference illustration;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "crossreferences")
-    private String crossreferences;
+    private CrossReferences crossreferences;
 
     public Creature() {
     }
@@ -131,6 +162,4 @@ public class Creature {
     public Creature(String key) {
         this.key = key;
     }
-
-    // getters and setters
 }
