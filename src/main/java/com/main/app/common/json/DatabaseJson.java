@@ -12,11 +12,24 @@ import tools.jackson.databind.json.JsonMapper;
 public final class DatabaseJson {
 
     public static final JsonMapper MAPPER = JsonMapper.builder()
-            .propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
+            .propertyNamingStrategy(new SnakeCaseWithNumbers())
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .enable(EnumFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL)
             .build();
 
     private DatabaseJson() {
+    }
+
+    /**
+     * snake_case that also separates numbers, as the Open5e data does: {@code hitPointsAt1stLevel} becomes
+     * {@code hit_points_at_1st_level} rather than {@code hit_points_at1st_level}.
+     */
+    static final class SnakeCaseWithNumbers extends PropertyNamingStrategies.SnakeCaseStrategy {
+
+        @Override
+        public String translate(String name) {
+            String snake = super.translate(name);
+            return snake == null ? null : snake.replaceAll("([a-z])(\\d)", "$1_$2");
+        }
     }
 }

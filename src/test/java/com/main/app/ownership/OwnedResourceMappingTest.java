@@ -43,4 +43,18 @@ class OwnedResourceMappingTest {
 
         assertTrue(unprotected.isEmpty(), "Entities not covered by the visibility filter: " + unprotected);
     }
+
+    /**
+     * Hibernate filters don't apply to collection mappings unless each collection declares the filter too, so a
+     * mapped collection of resources could include ones the user can't see. Load related resources with queries.
+     */
+    @Test
+    void entitiesHaveNoCollectionMappings() {
+        List<String> collections = entityManagerFactory.getMetamodel().getEntities().stream()
+                .flatMap(entity -> entity.getPluralAttributes().stream()
+                        .map(attribute -> entity.getJavaType().getSimpleName() + "." + attribute.getName()))
+                .toList();
+
+        assertTrue(collections.isEmpty(), "Collection mappings bypass the visibility filter: " + collections);
+    }
 }

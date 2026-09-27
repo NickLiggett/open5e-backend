@@ -4,8 +4,8 @@ A REST API over the [Open5e](https://open5e.com) D&D 5e dataset, built with Spri
 
 The database holds 33 Open5e tables (creatures, spells, magic items, classes, species, rules, …). The Open5e content
 is the **default content**, visible to everyone. Users will also be able to add their own content, visible only to
-them and anyone they share it with. The API currently exposes **creatures** (read-only); the other tables, and
-endpoints for creating content, are next. See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
+them and anyone they share it with. Every table is available through read-only, paged and filterable endpoints;
+endpoints for creating content are next. See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 
 ## Tech stack
 
@@ -95,29 +95,78 @@ Real sign-in replaces this in phase 5 without changing the endpoints (see [docs/
 
 ## API
 
-All endpoints are `GET`s for now.
+All endpoints are `GET`s for now. Every resource has a list endpoint and a get-by-key endpoint:
+
+- `GET /api/<resource>`: a page of what the current user can see, e.g. `/api/spells?level=3&school=evocation`
+- `GET /api/<resource>/{key}`: one by key, e.g. `/api/spells/srd-2024_fireball`. `404` if it doesn't exist or isn't
+  visible to the current user.
+
+### Paging and sorting
+
+| Parameter | Default | |
+|---|---|---|
+| `page` | `0` | Zero-based page number |
+| `pageSize` | `50` | Up to `500`. It isn't called `size` because that's a filter on creatures and items |
+| `sort` | `key` | A response field, optionally with a direction: `sort=name,desc`. Repeat for several |
+
+Lists return the page and its position:
+
+```json
+{
+  "content": [ { "key": "srd-2024_animate-dead", "name": "Animate Dead", "…": "…" } ],
+  "page": { "size": 50, "number": 0, "totalElements": 29, "totalPages": 1 }
+}
+```
+
+### Resources and filters
+
+Every resource except the global lookups can be filtered with `document` (one or more document keys,
+comma-separated: `document=srd-2014,srd-2024`) and `name` (case-insensitive part of the name). Boolean filters take
+`true` or `false`.
+
+| Endpoint | Other filters |
+|---|---|
+| `/api/documents` | `publisher`, `gamesystem` (keys); `name` |
+| `/api/creatures` | `cr` (exact, e.g. `0.25`), `crMin`, `crMax`, `type` (e.g. `dragon`), `size` (e.g. `huge`) |
+| `/api/creaturetypes`, `/api/creaturesets` | |
+| `/api/spells` | `level`, `school` (e.g. `evocation`), `class` (e.g. `srd-2024_wizard`), `damageType` (e.g. `fire`), `concentration`, `ritual` |
+| `/api/spellschools` | |
+| `/api/items` | `category` (e.g. `armor`) |
+| `/api/magicitems` | `category` (e.g. `wand`), `rarity` (e.g. `legendary`), `requiresAttunement` |
+| `/api/itemsets`, `/api/itemcategories`, `/api/services` | |
+| `/api/weapons` | `isSimple`, `isImprovised` |
+| `/api/weaponproperties` | `type` (e.g. `Mastery`) |
+| `/api/armor` | `category` (`light`, `medium`, `heavy`) |
+| `/api/classes` | `subclassOf` (a class key: its subclasses), `subclass` (`false`: base classes only), `casterType` |
+| `/api/species` | `subspeciesOf` (a species key), `isSubspecies` |
+| `/api/backgrounds` | |
+| `/api/feats` | `hasPrerequisite`, `type` |
+| `/api/rulesets` | |
+| `/api/rules` | `ruleset` (a ruleset key) |
+| `/api/abilities`, `/api/sizes`, `/api/damagetypes`, `/api/conditions`, `/api/images` | |
+| `/api/alignments` | (no `name`: alignments only have a `shortName`) |
+| `/api/skills` | `ability` (e.g. `dex`) |
+| `/api/languages` | `isExotic`, `isSecret` |
+| `/api/environments` | `aquatic`, `planar`, `interior` |
+| `/api/publishers`, `/api/gamesystems`, `/api/licenses`, `/api/itemrarities` | `name`. Global lookups: no document, visible to everyone |
+
+Other endpoints:
 
 | Endpoint | Description |
 |---|---|
-| `GET /api/creatures` | All creatures visible to the current user (3,541 defaults in the current dump; not paginated yet) |
-| `GET /api/creatures/{key}` | One creature by key, e.g. `a5e-mm_aboleth`. Returns `404` if it doesn't exist or isn't visible to the current user |
-| `GET /api/creatures/test` | Simple check that the controller is up |
 | `GET /api/me` | The current user, or `401` if nobody is signed in |
+| `GET /api/creatures/test` | Simple check that the app is up |
 
-### Who can see what
+### Response shapes
 
-Every resource belongs to a **document**: a source like the SRD (`srd-2024`) or a user's own homebrew. A user can see a
-resource if its document is default content (no owner), they own the document, or it has been shared with them. The
-rule is a Hibernate filter enabled for every database query (`ownership/Visibility`), so endpoints get it without
-doing anything. Content outside a user's view behaves as if it doesn't exist (`404`).
+Responses use camelCase fields. JSON data is returned as nested objects and arrays, e.g. a creature's actions and
+their attacks, a spell's casting options, a class's features, an item's weapon and armor stats. Resources that
+belong to a document include a `document` summary and `derivedFrom` (see below). Where the Open5e data embeds copies
+of other rows (an ability's skills, a creature set's creatures, an item set's items, a ruleset's rules), the API
+returns `{key, name}` references instead; fetch the full resource from its own endpoint.
 
-Customized copies of default content carry `derivedFrom`, the key of the resource they were copied from; it is `null`
-for everything else.
-
-Creature responses use camelCase fields, and the stat block is returned as nested JSON objects and arrays:
-document, type, size, speeds, ability scores and modifiers, saving throws, skill bonuses, languages, resistances and
-immunities, actions (with their attacks and usage limits), traits, environments, illustration and cross-references.
-`savingThrows`, `skillBonuses` and `speed` only list the entries a creature has; the `*All` variants list every one.
+A creature's `savingThrows`, `skillBonuses` and `speed` only list the entries it has; the `*All` variants list every
+one.
 
 Example (trimmed):
 
@@ -140,6 +189,26 @@ Example (trimmed):
   ]
 }
 ```
+
+### Errors
+
+Errors are [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem details (`application/problem+json`):
+
+```json
+{ "status": 400, "title": "Bad Request", "detail": "Invalid value 'three' for 'level'", "instance": "/api/spells" }
+```
+
+`404` for a missing or invisible key, `400` for a filter value of the wrong type or an unknown `sort` property.
+
+### Who can see what
+
+Every resource belongs to a **document**: a source like the SRD (`srd-2024`) or a user's own homebrew. A user can see a
+resource if its document is default content (no owner), they own the document, or it has been shared with them. The
+rule is a Hibernate filter enabled for every database query (`ownership/Visibility`), so endpoints get it without
+doing anything. Content outside a user's view behaves as if it doesn't exist (`404`).
+
+Customized copies of default content carry `derivedFrom`, the key of the resource they were copied from; it is `null`
+for everything else.
 
 ## Database and migrations
 
@@ -178,9 +247,13 @@ docker compose up -d db
 | `ApplicationTests` | The Spring context starts, Flyway runs, and Hibernate validates the entities against the schema |
 | `DatabaseJsonTest` | Reading snake_case database JSON into records (no database needed) |
 | `CreatureJsonTest` | camelCase API output, and leaving out absent speeds and skills (no database needed) |
+| `JsonColumnsRoundTripTest` | For every entity, compares each `jsonb` column of every default row with the mapped value, so any field lost or changed by the records fails the test. Covers new entities automatically |
+| `DtoMappingTest` | For every entity, checks `XDTO.from(X)` field by field against every default row, and that no entity field is left out of its DTO by mistake |
+| `EndpointSmokeTest` | Every `/api/<table>` endpoint: list totals match the table, a listed key can be fetched, unknown keys give a problem-details `404` |
+| `FilterTest` | Each list filter's total against the same condition in SQL, plus sorting, page-size limits and `400`s |
 | `VisibilityTest` | Real requests as different users (`dev` profile): owners and members see a homebrew creature, strangers get `404`, everyone sees default content |
 | `AnonymousVisibilityTest` | Outside `dev`, requests are anonymous and the `X-User` header is ignored |
-| `OwnedResourceMappingTest` | Every entity for a table with a `document_key` extends `OwnedResource`, so the visibility filter covers it |
+| `OwnedResourceMappingTest` | Every entity for a table with a `document_key` extends `OwnedResource`, so the visibility filter covers it, and no entity has collection mappings, which the filter wouldn't cover |
 | `CreatureDataTest` | Compares every JSON column of every creature in the database with the API objects, so any lost or changed data fails the test. It is skipped if the table is empty. The comparison lives in `JsonColumnRoundTrip`, for reuse by other tables |
 
 The ownership tests add rows (users `zz-test-*` and their documents) and delete them afterwards.
@@ -190,13 +263,24 @@ The ownership tests add rows (users `zz-test-*` and their documents) and delete 
 ```
 src/main/java/com/main/app
 ├── Application.java
-├── common/            Records shared across resources (NamedReference, DocumentSummary, …)
-│   └── json/          Database JSON mapping (snake_case mapper, Hibernate config)
-├── creature/          Everything for /api/creatures: entity, repository, service, controller,
-│                      CreatureDTO and its nested records
-├── document/          The Document entity; defines the visibility filter
+├── common/            Records shared across resources (NamedReference, DocumentSummary, Description, …)
+│   ├── json/          Database JSON mapping (snake_case mapper, Hibernate config)
+│   ├── query/         Filter building blocks (Specs) and jsonb SQL functions
+│   └── web/           ResourceQueries (list/get for every controller), error handling
+├── document/          Documents; the Document entity defines the visibility filter
 ├── ownership/         OwnedResource (base class for resource entities) and the visibility rule
-└── user/              CurrentUser and its implementations, /api/me
+├── user/              CurrentUser and its implementations, /api/me
+├── creature/          creatures, creature types, creature sets
+├── spell/             spells, spell schools
+├── item/              items, magic items, item sets, categories, rarities, weapons, weapon properties, armor,
+│                      services
+├── character/         classes, species, backgrounds, feats
+├── rule/              rules, rulesets
+└── reference/         abilities, skills, sizes, alignments, languages, damage types, conditions, environments,
+                       images, publishers, game systems, licenses
+
+Each resource has the same five classes: the entity (`Spell`), its DTO (`SpellDTO`, with `from(Spell)`), its list
+filter (`SpellFilter`), a repository and a controller.
 src/main/resources
 ├── application.properties
 └── db/migration/      Flyway migrations

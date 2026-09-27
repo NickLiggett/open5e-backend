@@ -82,9 +82,8 @@ class VisibilityTest {
                 .andExpect(jsonPath("$.document.name").value("DM Homebrew"))
                 .andExpect(jsonPath("$.derivedFrom").value(DEFAULT_CREATURE));
 
-        List<String> keys = listKeys(DM);
-        assertTrue(keys.contains(CREATURE));
-        assertEquals(defaultCreatureCount() + 1, keys.size(), "defaults plus their own creature");
+        assertTrue(listKeys(DM, DOCUMENT).contains(CREATURE));
+        assertEquals(defaultCreatureCount() + 1, total(DM), "defaults plus their own creature");
     }
 
     @Test
@@ -93,7 +92,7 @@ class VisibilityTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.document.key").value(DOCUMENT));
 
-        assertTrue(listKeys(PLAYER).contains(CREATURE));
+        assertTrue(listKeys(PLAYER, DOCUMENT).contains(CREATURE));
     }
 
     @Test
@@ -101,9 +100,8 @@ class VisibilityTest {
         mvc.perform(get("/api/creatures/" + CREATURE).header(DevCurrentUser.HEADER, STRANGER))
                 .andExpect(status().isNotFound());
 
-        List<String> keys = listKeys(STRANGER);
-        assertFalse(keys.contains(CREATURE));
-        assertEquals(defaultCreatureCount(), keys.size());
+        assertFalse(listKeys(STRANGER, DOCUMENT).contains(CREATURE));
+        assertEquals(defaultCreatureCount(), total(STRANGER));
     }
 
     @Test
@@ -137,11 +135,20 @@ class VisibilityTest {
                 .andExpect(status().isBadRequest());
     }
 
-    private List<String> listKeys(String user) throws Exception {
-        String body = mvc.perform(get("/api/creatures").header(DevCurrentUser.HEADER, user))
+    /** Keys of the creatures in a document that the user can see. */
+    private List<String> listKeys(String user, String document) throws Exception {
+        String body = mvc.perform(get("/api/creatures").param("document", document).header(DevCurrentUser.HEADER, user))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        return JsonPath.read(body, "$[*].key");
+        return JsonPath.read(body, "$.content[*].key");
+    }
+
+    /** How many creatures the user can see in total. */
+    private int total(String user) throws Exception {
+        String body = mvc.perform(get("/api/creatures").param("pageSize", "1").header(DevCurrentUser.HEADER, user))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(body, "$.page.totalElements");
     }
 
     private int defaultCreatureCount() {

@@ -48,4 +48,48 @@ public record CreatureDTO(
         ImageReference illustration,
         CrossReferences crossreferences
 ) {
+
+    public static CreatureDTO from(Creature entity) {
+        return new CreatureDTO(
+                entity.getKey(),
+                entity.getName(),
+                entity.getDocument().toSummary(),
+                entity.getDerivedFrom(),
+                entity.getType(),
+                entity.getSize(),
+                entity.getChallengeRating(),
+                entity.getProficiencyBonus(),
+                entity.getSpeed(),
+                entity.getSpeedAll(),
+                entity.getCategory(),
+                entity.getSubcategory(),
+                entity.getAlignment(),
+                entity.getLanguages(),
+                entity.getArmorClass(),
+                entity.getArmorDetail(),
+                entity.getHitPoints(),
+                entity.getHitDice(),
+                entity.getExperiencePoints(),
+                entity.getAbilityScores(),
+                entity.getModifiers(),
+                entity.getInitiativeBonus(),
+                entity.getSavingThrows(),
+                entity.getSavingThrowsAll(),
+                entity.getSkillBonuses(),
+                entity.getSkillBonusesAll(),
+                entity.getPassivePerception(),
+                entity.getResistancesAndImmunities(),
+                entity.getNormalSightRange(),
+                entity.getDarkvisionRange(),
+                entity.getBlindsightRange(),
+                entity.getTremorsenseRange(),
+                entity.getTruesightRange(),
+                entity.getActions(),
+                entity.getTraits(),
+                entity.getCreatureSets(),
+                entity.getEnvironments(),
+                entity.getIllustration(),
+                entity.getCrossreferences()
+        );
+    }
 }

@@ -29,6 +29,10 @@ public abstract class OwnedResource {
     @JoinColumn(name = "document_key", nullable = false)
     private Document document;
 
+    /** The document's key, for filtering without a join. Set {@link #document} to change it. */
+    @Column(name = "document_key", insertable = false, updatable = false)
+    private String documentKey;
+
     /** For a customized copy, the key of the resource it was copied from. */
     @Column(name = "derived_from")
     private String derivedFrom;

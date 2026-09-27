@@ -54,7 +54,7 @@ don't depend on embedded JSON copies.
 |---|---|---|
 | 1 | **Foundation:** snake_case `jsonb` mapping, creatures to `jsonb`, feature packages, shared records | Done |
 | 2 | **Ownership:** users, `owner_id`, `document_members`, `derived_from`; `CurrentUser` (dev implementation); visibility filter; isolation tests | Done |
-| 3 | **Read endpoints** for all resources, with pagination, filters and a shared error handler | |
+| 3 | **Read endpoints** for all resources, with pagination, filters and a shared error handler | Done |
 | 4 | **Write endpoints:** create/update/delete in own documents, copy-to-customize, sharing | |
 | 5 | **Real login:** token-based `CurrentUser`, Keycloak in Compose | |
 | 6 | **Importer** for default content | |
@@ -89,8 +89,17 @@ to `/api/spells/x`.
 | `/api/rulesets`, `/api/rules` | 52 / 283 | ruleset | rules loaded from `rules`, not the embedded copy |
 | `/api/images`, `/api/services` | 32 / 30 | document | |
 
-Each table: profile its JSON shapes against the data, write records, entity, repository, service and controller, add
-its `jsonb` columns to the round-trip data test, and add a `@WebMvcTest` for its filters.
+As built:
+
+- **Parent/child lookups are filters** rather than sub-routes: `/api/classes?subclassOf=…`, `/api/species?subspeciesOf=…`,
+  `/api/rules?ruleset=…`.
+- **Packages are grouped by domain** (`spell`, `item`, `character`, `rule`, `reference`, …) rather than one per table.
+- **The page size parameter is `pageSize`**, because `size` is a filter on creatures and items.
+- **No collection mappings** on entities: Hibernate filters don't apply to them, so related resources are loaded with
+  queries. `OwnedResourceMappingTest` enforces this.
+- **Tests are generic** and pick up new entities and endpoints automatically: `JsonColumnsRoundTripTest`,
+  `DtoMappingTest`, `EndpointSmokeTest`; `FilterTest` checks each filter against SQL.
+- **Not done yet:** rewriting cross-reference URLs (`http://localhost:8000/v2/spells/x/`) to `/api/spells/x`.
 
 ## Data notes
 
