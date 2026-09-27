@@ -1,83 +1,43 @@
 package com.main.app.dtos.Creature;
 
-public class CreatureDTO {
-
-    private String key;
-
-    private String name;
-
-    private CreatureDocument document;
-
-    private CreatureType type;
-
-    private CreatureSize size;
-
-    private Float challengeRating;
-
-    private Integer proficiencyBonus;
-
-    private CreatureSpeed speed;
-
-    private String speedAll;
-
-    private String category;
-
-    private String subcategory;
-
-    private String alignment;
-
-    private String languages;
-
-    private Integer armorClass;
-
-    private String armorDetail;
-
-    private Integer hitPoints;
-
-    private String hitDice;
-
-    private Integer experiencePoints;
-
-    private String abilityScores;
-
-    private String modifiers;
-
-    private Integer initiativeBonus;
-
-    private String savingThrows;
-
-    private String savingThrowsAll;
-
-    private String skillBonuses;
-
-    private String skillBonusesAll;
-
-    private Integer passivePerception;
-
-    private String resistancesAndImmunities;
-
-    private Integer normalSightRange;
-
-    private Integer darkvisionRange;
-
-    private Integer blindsightRange;
-
-    private Integer tremorsenseRange;
-
-    private Integer truesightRange;
-
-    private String actions;
-
-    private String traits;
-
-    private String creatureSets;
-
-    private String environments;
-
-    private String illustration;
-
-    private String crossreferences;
-
-    public CreatureDTO() {
-    }
+public record CreatureDTO(
+        String key,
+        String name,
+        CreatureDocument document,
+        CreatureType type,
+        CreatureSize size,
+        Float challengeRating,
+        Integer proficiencyBonus,
+        CreatureSpeed speed,
+        String speedAll,
+        String category,
+        String subcategory,
+        String alignment,
+        String languages,
+        Integer armorClass,
+        String armorDetail,
+        Integer hitPoints,
+        String hitDice,
+        Integer experiencePoints,
+        String abilityScores,
+        String modifiers,
+        Integer initiativeBonus,
+        String savingThrows,
+        String savingThrowsAll,
+        String skillBonuses,
+        String skillBonusesAll,
+        Integer passivePerception,
+        String resistancesAndImmunities,
+        Integer normalSightRange,
+        Integer darkvisionRange,
+        Integer blindsightRange,
+        Integer tremorsenseRange,
+        Integer truesightRange,
+        String actions,
+        String traits,
+        String creatureSets,
+        String environments,
+        String illustration,
+        String crossreferences
+) {
 }

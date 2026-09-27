@@ -1,18 +1,22 @@
 package com.main.app.controller;
 
-import com.main.app.entity.Creature;
+import com.main.app.dtos.Creature.CreatureDTO;
 import com.main.app.service.CreatureService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/creatures")
 public class CreatureController {
+
+    private static final Logger log = LoggerFactory.getLogger(CreatureController.class);
 
     private final CreatureService creatureService;
 
@@ -21,14 +25,14 @@ public class CreatureController {
     }
 
     @GetMapping
-    public List<Creature> getAllCreatures() {
+    public List<CreatureDTO> getAllCreatures() {
         return creatureService.getAllCreatures();
     }
 
-    @GetMapping("/{id}")
-    public Optional<Creature> getCreatureByKey(@PathVariable String id) {
-        System.out.println("id: " + id);
-        return creatureService.getCreatureByKey(id);
+    @GetMapping("/{key}")
+    public ResponseEntity<CreatureDTO> getCreatureByKey(@PathVariable String key) {
+        log.debug("Fetching creature {}", key);
+        return ResponseEntity.of(creatureService.getCreatureByKey(key));
     }
 
     @GetMapping("/test")
