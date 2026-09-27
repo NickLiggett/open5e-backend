@@ -461,7 +461,7 @@ filter (`SpellFilter`), a repository and a controller.
 src/main/resources
 ├── application.properties
 └── db/migration/      Flyway migrations
-docker/postgres/       Dump restore script (and the dump, which is not committed)
+docker/postgres/       Postgres image with the dump restore script (and the dump, which is not committed)
 docker/keycloak/       Keycloak realm for local token sign-in
 docs/PLAN.md           Roadmap and design decisions
 compose.yaml           Local app + database stack

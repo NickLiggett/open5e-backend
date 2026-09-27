@@ -1,0 +1,2 @@
+# The dump is bind-mounted at runtime (see compose.yaml), not copied into the image.
+*.dump

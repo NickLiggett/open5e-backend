@@ -4,7 +4,8 @@
 
 services:
   db:
-    image: postgres:18
+    # postgres:18 plus the restore script (docker/postgres/Dockerfile)
+    build: docker/postgres
     environment:
       POSTGRES_DB: open5e
       POSTGRES_USER: nick
@@ -14,7 +15,6 @@ services:
     volumes:
       - open5e-data:/var/lib/postgresql
       - ./docker/postgres/open5e_backup.dump:/dump/open5e_backup.dump:ro
-      - ./docker/postgres/restore-dump.sh:/docker-entrypoint-initdb.d/restore-dump.sh:ro
     healthcheck:
       # Checks over TCP, which only comes up after the init restore has finished.
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U nick -d open5e"]
