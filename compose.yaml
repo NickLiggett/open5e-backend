@@ -1,6 +1,7 @@
-# Local development stack: Postgres restored from the open5e dump, plus the API.
-#   docker compose up --build     start both (first start restores the dump)
-#   docker compose down -v        stop and delete the database volume (next start restores again)
+# Local development stack: Postgres, plus the API.
+#   docker compose up --build     start both (the first start restores docker/postgres/open5e_backup.dump, if present)
+#   docker compose down -v        stop and delete the database volume (the next start restores again)
+# Host ports can be changed with OPEN5E_DB_PORT (default 5434) and OPEN5E_APP_PORT (default 8080).
 
 services:
   db:
@@ -11,10 +12,11 @@ services:
       POSTGRES_USER: nick
       POSTGRES_PASSWORD: open5e
     ports:
-      - "5434:5432"
+      - "${OPEN5E_DB_PORT:-5434}:5432"
     volumes:
       - open5e-data:/var/lib/postgresql
-      - ./docker/postgres/open5e_backup.dump:/dump/open5e_backup.dump:ro
+      # The folder, not the dump file: mounting a file that doesn't exist would create a directory in its place.
+      - ./docker/postgres:/dump:ro
     healthcheck:
       # Checks over TCP, which only comes up after the init restore has finished.
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U nick -d open5e"]
@@ -36,7 +38,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: open5e
       SPRING_JPA_SHOW_SQL: "false"
     ports:
-      - "8080:8080"
+      - "${OPEN5E_APP_PORT:-8080}:8080"
 
 volumes:
   open5e-data:
