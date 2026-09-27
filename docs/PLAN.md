@@ -35,6 +35,12 @@ A REST API over the Open5e dataset where:
    `com.main.app.common`.
 8. **Default content is refreshed by an importer** that only touches default documents. Restoring the dump over a
    database with user content would delete it.
+9. **Default content is protected twice.** `DocumentAccess` refuses writes to it, and database triggers (V5) refuse
+   them too, in case of a bug. The importer opts out for its own transaction with
+   `SET LOCAL open5e.allow_default_content_changes = 'on'`.
+10. **Writes are generic.** One `ResourceWriter` handles create/replace/update/delete/copy for every resource type by
+    applying the request JSON to the entity with Jackson. This relies on DTO fields matching entity fields, which
+    `DtoMappingTest` enforces; `WriteSmokeTest` sends every type's full JSON back through `PUT`.
 
 ## Data model additions
 
@@ -55,7 +61,7 @@ don't depend on embedded JSON copies.
 | 1 | **Foundation:** snake_case `jsonb` mapping, creatures to `jsonb`, feature packages, shared records | Done |
 | 2 | **Ownership:** users, `owner_id`, `document_members`, `derived_from`; `CurrentUser` (dev implementation); visibility filter; isolation tests | Done |
 | 3 | **Read endpoints** for all resources, with pagination, filters and a shared error handler | Done |
-| 4 | **Write endpoints:** create/update/delete in own documents, copy-to-customize, sharing | |
+| 4 | **Write endpoints:** create/update/delete in own documents, copy-to-customize, sharing | Done |
 | 5 | **Real login:** token-based `CurrentUser`, Keycloak in Compose | |
 | 6 | **Importer** for default content | |
 

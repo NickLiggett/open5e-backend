@@ -35,6 +35,9 @@ import java.util.List;
 @Filter(name = Visibility.FILTER, condition = Visibility.DOCUMENT_CONDITION, deduceAliasInjectionPoints = false)
 public class Document {
 
+    /** The type of user-created documents; Open5e sources are {@code SOURCE}. */
+    public static final String HOMEBREW = "HOMEBREW";
+
     @Id
     @Column(name = "key")
     private String key;

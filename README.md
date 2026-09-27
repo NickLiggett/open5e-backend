@@ -4,8 +4,9 @@ A REST API over the [Open5e](https://open5e.com) D&D 5e dataset, built with Spri
 
 The database holds 33 Open5e tables (creatures, spells, magic items, classes, species, rules, …). The Open5e content
 is the **default content**, visible to everyone. Users will also be able to add their own content, visible only to
-them and anyone they share it with. Every table is available through read-only, paged and filterable endpoints;
-endpoints for creating content are next. See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
+them and anyone they share it with. Every table has paged, filterable read endpoints, and users can create
+content, customize copies of default content, and share their documents. See [docs/PLAN.md](docs/PLAN.md) for the
+roadmap.
 
 ## Tech stack
 
@@ -95,7 +96,8 @@ Real sign-in replaces this in phase 5 without changing the endpoints (see [docs/
 
 ## API
 
-All endpoints are `GET`s for now. Every resource has a list endpoint and a get-by-key endpoint:
+Every resource has a list endpoint and a get-by-key endpoint (writing is covered in
+[Changing content](#changing-content)):
 
 - `GET /api/<resource>`: a page of what the current user can see, e.g. `/api/spells?level=3&school=evocation`
 - `GET /api/<resource>/{key}`: one by key, e.g. `/api/spells/srd-2024_fireball`. `404` if it doesn't exist or isn't
@@ -210,6 +212,72 @@ doing anything. Content outside a user's view behaves as if it doesn't exist (`4
 Customized copies of default content carry `derivedFrom`, the key of the resource they were copied from; it is `null`
 for everything else.
 
+## Changing content
+
+Signed-in users (in local development: any `X-User`) can create their own content, customize copies of default
+content, and share it. Default content never changes.
+
+### Creating and editing resources
+
+Every resource except the global lookups (publishers, game systems, licenses, item rarities) supports:
+
+| Request | Does |
+|---|---|
+| `POST /api/<resource>` | Creates a resource. `201` with its URL in `Location` |
+| `PUT /api/<resource>/{key}` | Replaces all its fields; fields left out are cleared |
+| `PATCH /api/<resource>/{key}` | Changes only the fields given |
+| `DELETE /api/<resource>/{key}` | Deletes it. `204` |
+| `POST /api/<resource>/{key}/copy` | Copies a resource you can see (e.g. default content) into your own document to customize it. Body optional: `{"document": "<key>"}` |
+
+Request bodies use the same JSON as responses, so you can `GET` a resource, change it and `PUT` it back as it is.
+The server sets `key`, `document` and `derivedFrom`: they're ignored in `PUT` and `PATCH` bodies. Unknown fields and
+values of the wrong type are rejected with a `400` that names the field.
+
+```sh
+# Create, in your personal homebrew document (created on first use)
+curl -X POST -H 'X-User: dm' -H 'Content-Type: application/json' http://localhost:8080/api/creatures \
+     -d '{"name": "Owlbear King", "challengeRating": 5, "type": {"key": "monstrosity", "name": "Monstrosity"}}'
+
+# Customize a copy of default content; the copy's derivedFrom is the original's key
+curl -X POST -H 'X-User: dm' http://localhost:8080/api/creatures/a5e-mm_aboleth/copy
+curl -X PATCH -H 'X-User: dm' -H 'Content-Type: application/json' \
+     http://localhost:8080/api/creatures/u2-homebrew_aboleth -d '{"name": "Elder Aboleth", "hitPoints": 300}'
+```
+
+- **Where it goes:** `POST` bodies can give a `document` (a document key). Without one, content goes in your
+  personal homebrew document, `u{yourId}-homebrew`.
+- **Keys** are the document key plus a slug of the name, e.g. `u2-homebrew_owlbear-king`. Give `slug` in the body to
+  choose it. Creating a key that exists is a `409`; copies get the next free key (`…_aboleth-2`).
+- **Copies** appear alongside the original in lists. Changing a copy never changes the original.
+
+### Documents and sharing
+
+| Request | Does |
+|---|---|
+| `POST /api/documents` | Creates a document you own. Body: `name`, optional `slug`, `displayName`, `desc`, `author`. Key: `u{yourId}-{slug}` |
+| `PUT /api/documents/{key}` | Changes its name, display name, description and author. Owner only |
+| `DELETE /api/documents/{key}` | Deletes it **and everything in it**. Owner only |
+| `GET /api/documents/{key}/members` | Its owner and members, with roles |
+| `PUT /api/documents/{key}/members/{username}` | Shares it with a user, or changes their role. Body: `{"role": "VIEWER"}` or `{"role": "EDITOR"}`. Owner only |
+| `DELETE /api/documents/{key}/members/{username}` | Stops sharing with a user. The owner can remove anyone; members can remove themselves |
+
+Documents include `ownerId`: compare it with `GET /api/me` to tell your own documents apart.
+
+### Who can change what
+
+| | See its content | Add, change, delete content | Rename, delete, manage members |
+|---|---|---|---|
+| Default content | everyone | nobody (copy it instead) | nobody |
+| Owner | yes | yes | yes |
+| `EDITOR` member | yes | yes | no |
+| `VIEWER` member | yes | no | no |
+| Anyone else | no | no | no |
+
+Responses: `401` when nobody is signed in, `403` when you can see something but not change it, `404` when you
+can't see it at all (so other users' content is never revealed).
+
+The database also refuses changes to default content (migration V5), as a backstop in case of an application bug.
+
 ## Database and migrations
 
 Flyway manages the `open5e` schema. Migrations are in `src/main/resources/db/migration`:
@@ -220,6 +288,7 @@ Flyway manages the `open5e` schema. Migrations are in `src/main/resources/db/mig
 | `V2__drop_stray_public_tables.sql` | Drops leftover tables from the `public` schema |
 | `V3__creature_json_columns_to_jsonb.sql` | Converts the creature JSON columns from text to `jsonb`, like every other table |
 | `V4__ownership.sql` | Users, document owners and sharing (`document_members`); `document_key` and `derived_from` on every resource |
+| `V5__protect_default_content.sql` | Triggers that refuse changes to default content and default documents. A transaction can opt out with `SET LOCAL open5e.allow_default_content_changes = 'on'` (for a future importer) |
 
 - **Restored database (the Compose setup):** Flyway sees an existing schema, records it as V1 without running the
   script, then applies V2 and anything newer.
@@ -229,7 +298,7 @@ Flyway manages the `open5e` schema. Migrations are in `src/main/resources/db/mig
 - Hibernate runs with `ddl-auto=validate`: it checks the entities against the schema at startup and never changes the
   schema itself.
 
-To change the schema, add a new file with the next version number (e.g. `V5__description.sql`), and restart the
+To change the schema, add a new file with the next version number (e.g. `V6__description.sql`), and restart the
 app. Don't edit
 migrations that have already been applied.
 
@@ -251,12 +320,16 @@ docker compose up -d db
 | `DtoMappingTest` | For every entity, checks `XDTO.from(X)` field by field against every default row, and that no entity field is left out of its DTO by mistake |
 | `EndpointSmokeTest` | Every `/api/<table>` endpoint: list totals match the table, a listed key can be fetched, unknown keys give a problem-details `404` |
 | `FilterTest` | Each list filter's total against the same condition in SQL, plus sorting, page-size limits and `400`s |
+| `ResourceWriteTest` | Creating, replacing, updating, deleting and copying resources; documents and sharing; permissions for owners, editors, viewers and strangers; validation errors |
+| `WriteSmokeTest` | Every writable endpoint: copy a default resource, check the copy matches, `PUT` its full JSON back unchanged, `PATCH` it, delete it |
+| `DefaultContentProtectionTest` | The database refuses changes to default content and documents unless a transaction opts in |
 | `VisibilityTest` | Real requests as different users (`dev` profile): owners and members see a homebrew creature, strangers get `404`, everyone sees default content |
-| `AnonymousVisibilityTest` | Outside `dev`, requests are anonymous and the `X-User` header is ignored |
+| `AnonymousVisibilityTest` | Outside `dev`, requests are anonymous: the `X-User` header is ignored and writes get `401` |
 | `OwnedResourceMappingTest` | Every entity for a table with a `document_key` extends `OwnedResource`, so the visibility filter covers it, and no entity has collection mappings, which the filter wouldn't cover |
 | `CreatureDataTest` | Compares every JSON column of every creature in the database with the API objects, so any lost or changed data fails the test. It is skipped if the table is empty. The comparison lives in `JsonColumnRoundTrip`, for reuse by other tables |
 
-The ownership tests add rows (users `zz-test-*` and their documents) and delete them afterwards.
+The ownership and writing tests add rows (users `zz-test-*` and their documents) and delete them afterwards;
+the database backstop test only uses transactions that are rolled back.
 
 ## Project structure
 
@@ -267,8 +340,10 @@ src/main/java/com/main/app
 │   ├── json/          Database JSON mapping (snake_case mapper, Hibernate config)
 │   ├── query/         Filter building blocks (Specs) and jsonb SQL functions
 │   └── web/           ResourceQueries (list/get for every controller), error handling
-├── document/          Documents; the Document entity defines the visibility filter
-├── ownership/         OwnedResource (base class for resource entities) and the visibility rule
+├── document/          Documents and sharing; DocumentAccess decides who may change what; the Document
+│                      entity defines the visibility filter
+├── ownership/         OwnedResource (base class for resource entities), the visibility rule, and
+│                      ResourceWriter (create/replace/update/delete/copy for every resource)
 ├── user/              CurrentUser and its implementations, /api/me
 ├── creature/          creatures, creature types, creature sets
 ├── spell/             spells, spell schools

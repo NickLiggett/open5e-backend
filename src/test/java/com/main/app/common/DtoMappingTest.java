@@ -31,7 +31,6 @@ class DtoMappingTest {
     /** Entity fields deliberately left out of DTOs. */
     private static final Set<String> INTERNAL_FIELDS = Set.of(
             "documentKey",   // duplicated by document.key
-            "ownerId",       // documents: who owns it is not exposed yet
             "categoryKey",   // duplicated by category.key
             "rarityKey",     // duplicated by rarity.key
             "subclassOfKey"  // duplicated by subclassOf.key

@@ -5,6 +5,7 @@ import com.main.app.common.NamedReference;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+/** @param ownerId the owning user's id (compare with {@code /api/me}), or null for default content */
 public record DocumentDTO(
         String key,
         String name,
@@ -18,7 +19,8 @@ public record DocumentDTO(
         String weightUnit,
         NamedReference publisher,
         NamedReference gamesystem,
-        List<NamedReference> licenses
+        List<NamedReference> licenses,
+        Long ownerId
 ) {
 
     public static DocumentDTO from(Document entity) {
@@ -35,7 +37,8 @@ public record DocumentDTO(
                 entity.getWeightUnit(),
                 entity.getPublisher(),
                 entity.getGamesystem(),
-                entity.getLicenses()
+                entity.getLicenses(),
+                entity.getOwnerId()
         );
     }
 }

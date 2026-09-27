@@ -5,6 +5,8 @@ import com.main.app.common.NamedReference;
 import com.main.app.ownership.OwnedResource;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
@@ -57,4 +59,11 @@ public class Item extends OwnedResource {
 
     @Column(name = "category_key")
     private String categoryKey;
+
+    /** Keeps the key columns used by list filters in step with the objects they come from. */
+    @PrePersist
+    @PreUpdate
+    void syncKeys() {
+        categoryKey = category == null ? null : category.key();
+    }
 }

@@ -1,5 +1,6 @@
 package com.main.app.common.web;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -30,6 +31,12 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(PropertyReferenceException.class)
     ProblemDetail badSort(PropertyReferenceException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Can't sort by '" + e.getPropertyName() + "'");
+    }
+
+    /** A write that breaks a database constraint, e.g. two requests creating the same key at once. */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ProblemDetail conflict(DataIntegrityViolationException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "The change conflicts with existing data");
     }
 
     /** A filter parameter that couldn't be converted, e.g. {@code level=three}: say which one. */

@@ -5,6 +5,8 @@ import com.main.app.common.NamedReference;
 import com.main.app.ownership.OwnedResource;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
@@ -58,4 +60,11 @@ public class CharacterClass extends OwnedResource {
 
     @Column(name = "subclass_of_key")
     private String subclassOfKey;
+
+    /** Keeps the key columns used by list filters in step with the objects they come from. */
+    @PrePersist
+    @PreUpdate
+    void syncKeys() {
+        subclassOfKey = subclassOf == null ? null : subclassOf.key();
+    }
 }
