@@ -27,8 +27,9 @@ A REST API over the Open5e dataset where:
    - `dev` profile: a default dev user, switchable with an `X-User` header. It exists only under `dev` (Compose and
      `bootRun` set it); in any other profile requests are anonymous and the header is ignored.
    - Tests: requests with the `X-User` header under `@ActiveProfiles("dev")`.
-   - Later: read from a verified token (Spring OAuth2 resource server with any OIDC provider; Keycloak in Compose for
-     local, a hosted provider in production). Only the `CurrentUser` implementation changes.
+   - Every other profile: `JwtCurrentUser` reads a verified bearer token (Spring OAuth2 resource server; any OIDC
+     provider whose tokens have the `open5e-api` audience). Users are created on first sign-in and found by issuer +
+     subject. Keycloak for local use is in `compose.auth.yaml`; production points `OIDC_ISSUER_URI` elsewhere.
 6. **`jsonb` columns map straight onto Java records** in the entities (`@JdbcTypeCode(SqlTypes.JSON)`), using a
    snake_case Jackson mapper registered with Hibernate. The API serializes the same records as camelCase.
 7. **Code is organized by feature** (`com.main.app.creature`, `com.main.app.spell`, …), with shared records in
@@ -62,7 +63,7 @@ don't depend on embedded JSON copies.
 | 2 | **Ownership:** users, `owner_id`, `document_members`, `derived_from`; `CurrentUser` (dev implementation); visibility filter; isolation tests | Done |
 | 3 | **Read endpoints** for all resources, with pagination, filters and a shared error handler | Done |
 | 4 | **Write endpoints:** create/update/delete in own documents, copy-to-customize, sharing | Done |
-| 5 | **Real login:** token-based `CurrentUser`, Keycloak in Compose | |
+| 5 | **Real login:** token-based `CurrentUser`, Keycloak in Compose | Done |
 | 6 | **Importer** for default content | |
 
 ## Resources (phase 3)

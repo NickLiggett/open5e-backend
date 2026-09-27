@@ -1,0 +1,37 @@
+# Adds Keycloak and runs the app with real sign-in (bearer tokens) instead of the X-User header:
+#   docker compose -f compose.yaml -f compose.auth.yaml up --build
+# Keycloak: http://localhost:8180 (admin console: admin / admin). Test users dm, player and stranger; each user's
+# password is their username. See the README for getting a token.
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # Tokens name this issuer however Keycloak is reached, so they match what the app expects.
+      KC_HOSTNAME: http://localhost:8180
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./docker/keycloak/open5e-realm.json:/opt/keycloak/data/import/open5e-realm.json:ro
+    healthcheck:
+      # The image has no curl; ask the management port's readiness endpoint over bash's /dev/tcp.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  app:
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    environment:
+      # Any profile but dev signs requests in with bearer tokens.
+      SPRING_PROFILES_ACTIVE: default
+      # Tokens say they come from localhost:8180 (what clients use); inside Compose the keys are fetched directly.
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8180/realms/open5e
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/open5e/protocol/openid-connect/certs

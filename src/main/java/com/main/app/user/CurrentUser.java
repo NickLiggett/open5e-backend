@@ -7,7 +7,7 @@ import java.util.Optional;
  * tokens themselves, so the way users sign in can change without touching them.
  * <ul>
  *     <li>{@code dev} profile: {@link DevCurrentUser}, chosen by the {@code X-User} header</li>
- *     <li>any other profile: {@link AnonymousCurrentUser} until real sign-in exists (see docs/PLAN.md, phase 5)</li>
+ *     <li>any other profile: {@link JwtCurrentUser}, from the bearer token; anonymous without one</li>
  * </ul>
  */
 public interface CurrentUser {

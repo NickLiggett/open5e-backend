@@ -10,10 +10,10 @@ roadmap.
 
 ## Tech stack
 
-- Java 21, Spring Boot 4.1 (Web MVC, Data JPA), Hibernate 7
+- Java 21, Spring Boot 4.1 (Web MVC, Data JPA, Security as an OAuth2 resource server), Hibernate 7
 - PostgreSQL 18, with [Flyway](https://documentation.red-gate.com/flyway) migrations
 - Gradle (wrapper included), Lombok
-- Docker Compose for local development
+- Docker Compose for local development, with optional Keycloak for sign-in
 
 ## Running locally
 
@@ -47,7 +47,7 @@ docker compose up -d db
 ```
 
 `application.properties` already points at the Compose database (`localhost:5434`), and `bootRun` uses the `dev`
-profile (see [Users in local development](#users-in-local-development)). To run `com.main.app.Application` from
+profile (see [Signing in](#signing-in)). To run `com.main.app.Application` from
 IntelliJ, set **Active profiles** to `dev` in the run configuration; without it, every request is anonymous.
 
 ### Docker commands
@@ -76,10 +76,21 @@ The database uses host port 5434 so it doesn't clash with other local Postgres i
 development credentials only. Override any datasource setting with environment variables such as
 `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD`.
 
-## Users in local development
+## Signing in
 
-There is no sign-in yet. Under the `dev` profile, which Compose and `bootRun` use, each request says who it is with
-an `X-User` header:
+How requests say who they are depends on the Spring profile:
+
+| Profile | Sign-in | Used by |
+|---|---|---|
+| `dev` | The `X-User` header; no tokens | `docker compose up`, `./gradlew bootRun` |
+| anything else | Bearer tokens (JWTs) from an OpenID Connect provider | `compose.auth.yaml`, production |
+
+Without sign-in, requests are anonymous: they can read default content, `/api/me` returns `401`, and writes get
+`401`.
+
+### Local development: the `X-User` header
+
+Under `dev`, each request names its user in an `X-User` header:
 
 ```sh
 curl http://localhost:8080/api/me                      # {"id":1,"username":"dev"} (no header: the "dev" user)
@@ -89,10 +100,50 @@ curl -H 'X-User: dm' http://localhost:8080/api/me      # {"id":2,"username":"dm"
 - A user is created the first time their name is used. Names are 1-32 lowercase letters, digits or hyphens.
 - Use different names to check what each user can see, e.g. that a player sees a DM's shared content and a stranger
   doesn't.
-- Anyone can claim any name, so the `dev` profile is for local development only. Without it, the header is ignored
-  and every request is anonymous: only default content is visible and `/api/me` returns `401`.
+- Anyone can claim any name, so the `dev` profile is for local development only. In every other profile the header
+  is ignored.
 
-Real sign-in replaces this in phase 5 without changing the endpoints (see [docs/PLAN.md](docs/PLAN.md)).
+### Real sign-in: bearer tokens
+
+In every other profile the API is an OAuth2 resource server. It accepts access tokens from the OpenID Connect issuer
+in `spring.security.oauth2.resourceserver.jwt.issuer-uri` (env `OIDC_ISSUER_URI`, default the local Keycloak below)
+whose audience includes `open5e-api`:
+
+```sh
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/me
+```
+
+- The user is created on their first signed-in request, found afterwards by the token's issuer and subject.
+- Their username comes from the token's `preferred_username`, made to fit the username rules. If another user has
+  it (for example a dev-profile user of the same name), `-2`, `-3`, … is added.
+- Invalid, expired or wrong-audience tokens are a `401`, even for reads.
+- The issuer's signing keys are fetched on the first request with a token. Requests with tokens fail while the
+  issuer is unreachable; anonymous requests don't need it.
+
+To try it locally, `compose.auth.yaml` adds Keycloak and runs the app with token sign-in:
+
+```sh
+docker compose -f compose.yaml -f compose.auth.yaml up --build
+
+# Get a token for a test user (dm, player or stranger; the password is the username)
+TOKEN=$(curl -s -X POST http://localhost:8180/realms/open5e/protocol/openid-connect/token \
+  -d grant_type=password -d client_id=open5e-cli -d username=dm -d password=dm | jq -r .access_token)
+
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/me
+```
+
+| | |
+|---|---|
+| Keycloak | <http://localhost:8180>, admin console user `admin`, password `admin` |
+| Realm | `open5e`, from `docker/keycloak/open5e-realm.json` |
+| Client | `open5e-cli`: public, password grant for curl/Postman, redirect URIs `http://localhost:*` for a local frontend |
+| Test users | `dm`, `player`, `stranger` (password = username) |
+
+Tokens last an hour. The password grant is only for local testing; a real frontend would use the authorization
+code flow. Run `docker compose up -d app` afterwards to go back to the `dev` profile.
+
+For production, point `OIDC_ISSUER_URI` at your provider (e.g. Auth0, a hosted Keycloak) and have it issue tokens
+with the `open5e-api` audience. The code doesn't change.
 
 ## API
 
@@ -214,7 +265,7 @@ for everything else.
 
 ## Changing content
 
-Signed-in users (in local development: any `X-User`) can create their own content, customize copies of default
+Signed-in users (see [Signing in](#signing-in)) can create their own content, customize copies of default
 content, and share it. Default content never changes.
 
 ### Creating and editing resources
@@ -324,7 +375,8 @@ docker compose up -d db
 | `WriteSmokeTest` | Every writable endpoint: copy a default resource, check the copy matches, `PUT` its full JSON back unchanged, `PATCH` it, delete it |
 | `DefaultContentProtectionTest` | The database refuses changes to default content and documents unless a transaction opts in |
 | `VisibilityTest` | Real requests as different users (`dev` profile): owners and members see a homebrew creature, strangers get `404`, everyone sees default content |
-| `AnonymousVisibilityTest` | Outside `dev`, requests are anonymous: the `X-User` header is ignored and writes get `401` |
+| `AnonymousVisibilityTest` | Outside `dev`, requests without a token are anonymous: the `X-User` header is ignored and writes get `401` |
+| `TokenSignInTest` | Token sign-in: users created on first sign-in and found by issuer and subject, username clashes get a suffix, signed-in writes, invalid tokens get `401` |
 | `OwnedResourceMappingTest` | Every entity for a table with a `document_key` extends `OwnedResource`, so the visibility filter covers it, and no entity has collection mappings, which the filter wouldn't cover |
 | `CreatureDataTest` | Compares every JSON column of every creature in the database with the API objects, so any lost or changed data fails the test. It is skipped if the table is empty. The comparison lives in `JsonColumnRoundTrip`, for reuse by other tables |
 
@@ -344,7 +396,8 @@ src/main/java/com/main/app
 │                      entity defines the visibility filter
 ├── ownership/         OwnedResource (base class for resource entities), the visibility rule, and
 │                      ResourceWriter (create/replace/update/delete/copy for every resource)
-├── user/              CurrentUser and its implementations, /api/me
+├── user/              Sign-in (SecurityConfig), CurrentUser and its dev (X-User) and token (JWT)
+│                      implementations, /api/me
 ├── creature/          creatures, creature types, creature sets
 ├── spell/             spells, spell schools
 ├── item/              items, magic items, item sets, categories, rarities, weapons, weapon properties, armor,
@@ -360,8 +413,10 @@ src/main/resources
 ├── application.properties
 └── db/migration/      Flyway migrations
 docker/postgres/       Dump restore script (and the dump, which is not committed)
+docker/keycloak/       Keycloak realm for local token sign-in
 docs/PLAN.md           Roadmap and design decisions
 compose.yaml           Local app + database stack
+compose.auth.yaml      Adds Keycloak and token sign-in (see Signing in)
 Dockerfile             Multi-stage build of the app image
 ```
 
@@ -373,4 +428,6 @@ Dockerfile             Multi-stage build of the app image
 - **`port is already allocated`.** Something else is using 8080 or 5434. Change the host side of the port mapping in
   `compose.yaml` (for example `"5435:5432"`); if you change the database port, update `spring.datasource.url` in
   `application.properties` too.
+- **Requests with a token fail with a server error.** The app couldn't reach the token issuer to fetch its keys.
+  With `compose.auth.yaml`, check that Keycloak is running (`docker compose -f compose.yaml -f compose.auth.yaml ps`).
 - **You want a fresh copy of the data.** Run `docker compose down -v`, then `docker compose up`.
