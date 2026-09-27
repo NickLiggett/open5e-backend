@@ -1,0 +1,40 @@
+# Local development stack: Postgres restored from the open5e dump, plus the API.
+#   docker compose up --build     start both (first start restores the dump)
+#   docker compose down -v        stop and delete the database volume (next start restores again)
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: open5e
+      POSTGRES_USER: nick
+      POSTGRES_PASSWORD: open5e
+    ports:
+      - "5434:5432"
+    volumes:
+      - open5e-data:/var/lib/postgresql
+      - ./docker/postgres/open5e_backup.dump:/dump/open5e_backup.dump:ro
+      - ./docker/postgres/restore-dump.sh:/docker-entrypoint-initdb.d/restore-dump.sh:ro
+    healthcheck:
+      # Checks over TCP, which only comes up after the init restore has finished.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U nick -d open5e"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/open5e
+      SPRING_DATASOURCE_USERNAME: nick
+      SPRING_DATASOURCE_PASSWORD: open5e
+      SPRING_JPA_SHOW_SQL: "false"
+    ports:
+      - "8080:8080"
+
+volumes:
+  open5e-data:
