@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 /**
  * Open5e data links to other resources with URLs on whichever Open5e server produced it, e.g.
  * {@code https://api.open5e.com/v2/spells/srd_fireball/}. The endpoints here are named the same, so those links
- * become paths on this API: {@code /api/spells/srd_fireball}. V6 did the same to the data already in the database.
+ * become paths on this API: {@code /api/spells/srd_fireball}.
  */
 public final class ApiUrls {
 

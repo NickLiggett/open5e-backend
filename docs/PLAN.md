@@ -39,7 +39,7 @@ A REST API over the Open5e dataset where:
    the tables, and merges it in one transaction: insert, update if changed, delete if gone, never touching user
    documents, and refusing to delete more than half of a table unless told to. It runs as a command
    (`--spring.profiles.active=import --open5e.import.mode=dry-run|apply`).
-9. **Default content is protected twice.** `DocumentAccess` refuses writes to it, and database triggers (V5) refuse
+9. **Default content is protected twice.** `DocumentAccess` refuses writes to it, and database triggers (V2) refuse
    them too, in case of a bug. The importer opts out for its own transaction with
    `SET LOCAL open5e.allow_default_content_changes = 'on'`.
 10. **Writes are generic.** One `ResourceWriter` handles create/replace/update/delete/copy for every resource type by
@@ -109,8 +109,8 @@ As built:
   queries. `OwnedResourceMappingTest` enforces this.
 - **Tests are generic** and pick up new entities and endpoints automatically: `JsonColumnsRoundTripTest`,
   `DtoMappingTest`, `EndpointSmokeTest`; `FilterTest` checks each filter against SQL.
-- **Cross-reference URLs** (`http://localhost:8000/v2/spells/x/`) are rewritten to `/api/spells/x`: in the data
-  by V6, and on import by `ApiUrls`.
+- **Cross-reference URLs** (`http://localhost:8000/v2/spells/x/`) are rewritten to `/api/spells/x` on import, by
+  `ApiUrls`.
 
 ## Data notes
 
@@ -119,3 +119,13 @@ As built:
 - `weapons` has no `is_martial` column, but the weapon data embedded in items does.
 - `creaturesets.creatures`, `rulesets.rules`, `abilities.skills` and `itemsets.items` hold copies of rows from other
   tables; the API returns references instead.
+
+## Migrations
+
+The phases above added six migrations (V1 to V6): the original schema from the dump, then dropping stray tables,
+converting creature columns to `jsonb`, ownership, default-content triggers and rewriting links. Once the importer
+could load all content from the Open5e API, the upgrade path for the original dump was no longer needed, so they
+were combined into two that create the final schema directly: `V1__create_schema.sql` and
+`V2__protect_default_content.sql`. The combined schema is identical to the one the six produced (checked by
+comparing schema-only dumps). Databases created by the old six need to be recreated, and dumps of the original
+database are loaded through the importer instead.

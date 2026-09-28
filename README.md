@@ -64,17 +64,22 @@ The database starts empty unless you give it a dump. There are two ways to fill 
 | | How | When |
 |---|---|---|
 | **From the Open5e API** | Start the stack, then run the importer (step 2 of the quick start) | Any time; no files needed. This gets the latest Open5e data |
-| **From a dump** | Put a `pg_dump` custom-format file at `docker/postgres/open5e_backup.dump` **before the database's first start** | You have an existing database to copy, e.g. from another machine |
+| **From a dump** | Put a `pg_dump` custom-format file at `docker/postgres/open5e_backup.dump` **before the database's first start** | You want to copy this app's database, with users' content, e.g. to another machine |
 
-To make a dump of an existing database (Postgres.app, another Compose setup, …):
+To make a dump of this app's Compose database:
 
 ```sh
-pg_dump -Fc -d open5e -f docker/postgres/open5e_backup.dump
+docker compose exec db pg_dump -U nick -d open5e -Fc -f /tmp/open5e_backup.dump
+docker compose cp db:/tmp/open5e_backup.dump docker/postgres/open5e_backup.dump
 ```
 
 The dump is gitignored. It's restored only when the database volume is first created; to restore it again, run
-`docker compose down -v` and start again. A dump from before these migrations existed is fine: the app upgrades it
-when it starts (see [Database and migrations](#database-and-migrations)).
+`docker compose down -v` and start again.
+
+The dump must come from a database this app created, because it includes Flyway's history (see
+[Database and migrations](#database-and-migrations)). A copy of an older Open5e database that never ran these
+migrations, such as the original Postgres.app database, won't start (Flyway reports "Found non-empty schema(s)
+"open5e" but no schema history table"); load its content with the importer instead.
 
 ### Option 1: everything in Docker
 
@@ -443,7 +448,7 @@ A short tour of the ideas the code is built on. The design decisions and their h
 - **Who is asking** comes from `CurrentUser`: the `X-User` header under `dev` (`DevCurrentUser`), a verified token
   otherwise (`JwtCurrentUser`). The user is resolved once at the start of each request.
 - **Who may change what** is decided by `DocumentAccess`. Default content is also protected by database triggers
-  (migration V5), so a bug can't change it; only the importer's transaction lifts that protection.
+  (migration V2), so a bug can't change it; only the importer's transaction lifts that protection.
 - **JSON data is typed.** The Open5e data has many JSON columns (`jsonb`). Entities map them straight onto Java records
   (`@JdbcTypeCode(SqlTypes.JSON)`), read with a snake_case mapper (`common/json/DatabaseJson`); API responses use
   camelCase.
@@ -460,16 +465,12 @@ Flyway manages the `open5e` schema. Migrations are in `src/main/resources/db/mig
 
 | Migration | Purpose |
 |---|---|
-| `V1__create_open5e_schema.sql` | The `open5e` schema from the original dump: 33 tables, indexes and foreign keys |
-| `V2__drop_stray_public_tables.sql` | Drops leftover tables from the `public` schema |
-| `V3__creature_json_columns_to_jsonb.sql` | Converts the creature JSON columns from text to `jsonb`, like every other table |
-| `V4__ownership.sql` | Users, document owners and sharing (`document_members`); `document_key` and `derived_from` on every resource |
-| `V5__protect_default_content.sql` | Triggers that refuse changes to default content and default documents. A transaction can opt out with `SET LOCAL open5e.allow_default_content_changes = 'on'`, as the importer does |
-| `V6__rewrite_open5e_links.sql` | Rewrites links to other Open5e resources (`http://<any host>/v2/spells/srd_fireball/`) to paths on this API (`/api/spells/srd_fireball`) |
+| `V1__create_schema.sql` | The whole schema: the 33 Open5e content tables (`jsonb` for JSON data, a `document_key` and `derived_from` on every resource), users, document owners and sharing (`document_members`), indexes and foreign keys |
+| `V2__protect_default_content.sql` | Triggers that refuse changes to default content and default documents. A transaction can opt out with `SET LOCAL open5e.allow_default_content_changes = 'on'`, as the importer does |
 
-- **Empty database:** Flyway runs every migration, creating an empty schema; the importer fills it.
-- **Restored dump:** Flyway sees an existing schema, records it as V1 without running that script, then applies V2 and
-  newer. This upgrades a dump made before these migrations existed.
+- **Empty database:** Flyway runs both migrations, creating an empty schema; the importer fills it.
+- **Restored dump** of this app's database: it includes Flyway's history table, so Flyway finds the schema up to date
+  and only runs migrations added since the dump was made.
 - Hibernate runs with `ddl-auto=validate`: it checks the entities against the schema at startup and never changes
   the schema itself.
 
@@ -591,5 +592,12 @@ Not started yet, roughly in order of usefulness:
 - **The importer stops with "upstream is missing N of M rows".** The API returned much less than the database has,
   so it refused to delete that much. Check the API; if the deletions are intended, add
   `--open5e.import.allow-large-deletions=true`.
+- **The app won't start: "Found non-empty schema(s) "open5e" but no schema history table".** The database was
+  restored from a dump that didn't come from this app (e.g. the original Postgres.app database). Remove the dump from
+  `docker/postgres/`, run `docker compose down -v`, start again, and load the content with the importer.
+- **The app won't start: "Validate failed: Migrations have failed validation"** (e.g. "Detected applied migration not
+  resolved locally"). The database was created by an older set of migrations (V1 to V6, before they were combined
+  into two). Its user content, if it has any you want to keep, can't be carried over automatically; otherwise run
+  `docker compose down -v`, start again, and load the content with the importer.
 - **You want to start over.** `docker compose down -v` deletes the database; the next start begins empty (or restores
   your dump).

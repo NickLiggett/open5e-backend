@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
  * For each table, upstream rows replace the default rows with the same key (unchanged rows aren't written), new
  * ones are added, and default rows upstream no longer has are deleted. Rows in user documents are never written,
  * even if an upstream key collides with one; user copies of deleted rows keep their data. The whole import is one
- * transaction, which is the only place the V5 protection of default content is lifted.
+ * transaction, which is the only place the database's protection of default content (V2) is lifted.
  * <p>
  * This is the one piece of application code that writes resource tables with plain SQL (bypassing the visibility
  * filter), which is safe because it only ever touches default content.

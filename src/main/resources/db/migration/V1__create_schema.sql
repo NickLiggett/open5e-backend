@@ -1,6 +1,23 @@
--- Baseline schema for the open5e database, taken from open5e_backup.dump (PostgreSQL 18).
--- Flyway creates the open5e schema itself (spring.flyway.schemas), so it is not created here.
--- Existing databases are baselined at this version instead of running it (see application.properties).
+-- The open5e schema: the 33 Open5e content tables (they mirror the Open5e v2 API, endpoint for table and field for
+-- column), plus users and sharing. Flyway creates the open5e schema itself (spring.flyway.schemas).
+--
+-- Ownership: every resource belongs to a document (document_key). Documents with no owner are default content,
+-- visible to everyone and read-only; users' own content lives in documents they own, shared through
+-- document_members. See docs/PLAN.md.
+
+-- Users and sharing
+
+-- username identifies dev-profile users (X-User header); idp_subject is the identity provider's issuer and subject.
+CREATE TABLE open5e.users (
+    id           bigint GENERATED ALWAYS AS IDENTITY,
+    username     text        NOT NULL,
+    idp_subject  text,
+    display_name text,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT users_pkey PRIMARY KEY (id),
+    CONSTRAINT users_username_key UNIQUE (username),
+    CONSTRAINT users_idp_subject_key UNIQUE (idp_subject)
+);
 
 -- Reference data
 
@@ -39,7 +56,20 @@ CREATE TABLE open5e.documents (
     permalink        text,
     distance_unit    text,
     weight_unit      text,
+    owner_id         bigint,
     CONSTRAINT documents_pkey PRIMARY KEY (key)
+);
+
+-- Sharing: members can see a document's content (VIEWER) or also change it (EDITOR).
+CREATE TABLE open5e.document_members (
+    document_key text        NOT NULL,
+    user_id      bigint      NOT NULL,
+    role         text        NOT NULL,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT document_members_pkey PRIMARY KEY (document_key, user_id),
+    CONSTRAINT document_members_role_check CHECK (role IN ('VIEWER', 'EDITOR')),
+    CONSTRAINT document_members_document_key_fk FOREIGN KEY (document_key) REFERENCES open5e.documents (key) ON DELETE CASCADE,
+    CONSTRAINT document_members_user_id_fk FOREIGN KEY (user_id) REFERENCES open5e.users (id) ON DELETE CASCADE
 );
 
 CREATE TABLE open5e.abilities (
@@ -48,7 +78,8 @@ CREATE TABLE open5e.abilities (
     skills       jsonb,
     name         text,
     short_desc   text,
-    document_key text,
+    document_key text NOT NULL,
+    derived_from text,
     CONSTRAINT abilities_pkey PRIMARY KEY (key)
 );
 
@@ -56,8 +87,9 @@ CREATE TABLE open5e.skills (
     key          text NOT NULL,
     descriptions jsonb,
     name         text,
-    document_key text,
+    document_key text NOT NULL,
     ability      text,
+    derived_from text,
     CONSTRAINT skills_pkey PRIMARY KEY (key)
 );
 
@@ -69,7 +101,8 @@ CREATE TABLE open5e.sizes (
     rank               integer,
     space_diameter     integer,
     suggested_hit_dice text,
-    document_key       text GENERATED ALWAYS AS ((document ->> 'key'::text)) STORED,
+    document_key       text NOT NULL,
+    derived_from       text,
     CONSTRAINT sizes_pkey PRIMARY KEY (key)
 );
 
@@ -80,7 +113,8 @@ CREATE TABLE open5e.alignments (
     short_name        text,
     descriptions      jsonb,
     document          jsonb,
-    document_key      text GENERATED ALWAYS AS ((document ->> 'key'::text)) STORED,
+    document_key      text NOT NULL,
+    derived_from      text,
     CONSTRAINT alignments_pkey PRIMARY KEY (key)
 );
 
@@ -93,7 +127,8 @@ CREATE TABLE open5e.languages (
     is_secret       boolean,
     script_language text,
     crossreferences jsonb,
-    document_key    text GENERATED ALWAYS AS ((document ->> 'key'::text)) STORED,
+    document_key    text NOT NULL,
+    derived_from    text,
     CONSTRAINT languages_pkey PRIMARY KEY (key)
 );
 
@@ -101,7 +136,8 @@ CREATE TABLE open5e.damagetypes (
     key          text NOT NULL,
     descriptions jsonb,
     name         text,
-    document_key text,
+    document_key text NOT NULL,
+    derived_from text,
     CONSTRAINT damagetypes_pkey PRIMARY KEY (key)
 );
 
@@ -111,7 +147,8 @@ CREATE TABLE open5e.conditions (
     icon         jsonb,
     descriptions jsonb,
     name         text,
-    document_key text GENERATED ALWAYS AS ((document ->> 'key'::text)) STORED,
+    document_key text NOT NULL,
+    derived_from text,
     CONSTRAINT conditions_pkey PRIMARY KEY (key)
 );
 
@@ -122,8 +159,9 @@ CREATE TABLE open5e.environments (
     aquatic         boolean,
     planar          boolean,
     interior        boolean,
-    document_key    text,
+    document_key    text NOT NULL,
     crossreferences jsonb,
+    derived_from    text,
     CONSTRAINT environments_pkey PRIMARY KEY (key)
 );
 
@@ -140,7 +178,8 @@ CREATE TABLE open5e.itemcategories (
     key          text NOT NULL,
     document     jsonb,
     name         text,
-    document_key text GENERATED ALWAYS AS ((document ->> 'key'::text)) STORED,
+    document_key text NOT NULL,
+    derived_from text,
     CONSTRAINT itemcategories_pkey PRIMARY KEY (key)
 );
 
@@ -149,8 +188,9 @@ CREATE TABLE open5e.itemsets (
     items           jsonb,
     name            text,
     "desc"          text,
-    document_key    text,
+    document_key    text NOT NULL,
     crossreferences jsonb,
+    derived_from    text,
     CONSTRAINT itemsets_pkey PRIMARY KEY (key)
 );
 
@@ -167,8 +207,9 @@ CREATE TABLE open5e.items (
     cost            numeric,
     document        jsonb,
     crossreferences jsonb,
-    category_key    text GENERATED ALWAYS AS ((category ->> 'key'::text)) STORED,
-    document_key    text GENERATED ALWAYS AS ((document ->> 'key'::text)) STORED,
+    category_key    text,
+    document_key    text NOT NULL,
+    derived_from    text,
     CONSTRAINT items_pkey PRIMARY KEY (key)
 );
 
@@ -188,9 +229,10 @@ CREATE TABLE open5e.magicitems (
     attunement_detail   text,
     document            jsonb,
     crossreferences     jsonb,
-    category_key        text GENERATED ALWAYS AS ((category ->> 'key'::text)) STORED,
-    document_key        text GENERATED ALWAYS AS ((document ->> 'key'::text)) STORED,
-    rarity_key          text GENERATED ALWAYS AS ((rarity ->> 'key'::text)) STORED,
+    category_key        text,
+    document_key        text NOT NULL,
+    rarity_key          text,
+    derived_from        text,
     CONSTRAINT magicitems_pkey PRIMARY KEY (key)
 );
 
@@ -198,9 +240,10 @@ CREATE TABLE open5e.weaponproperties (
     key             text NOT NULL,
     name            text,
     "desc"          text,
-    document_key    text,
+    document_key    text NOT NULL,
     type            text,
     crossreferences jsonb,
+    derived_from    text,
     CONSTRAINT weaponproperties_pkey PRIMARY KEY (key)
 );
 
@@ -216,7 +259,8 @@ CREATE TABLE open5e.weapons (
     long_range    integer,
     is_simple     boolean,
     is_improvised boolean,
-    document_key  text GENERATED ALWAYS AS ((document ->> 'key'::text)) STORED,
+    document_key  text NOT NULL,
+    derived_from  text,
     CONSTRAINT weapons_pkey PRIMARY KEY (key)
 );
 
@@ -231,7 +275,8 @@ CREATE TABLE open5e.armor (
     ac_base                     integer,
     ac_add_dexmod               boolean,
     ac_cap_dexmod               integer,
-    document_key                text GENERATED ALWAYS AS ((document ->> 'key'::text)) STORED,
+    document_key                text NOT NULL,
+    derived_from                text,
     CONSTRAINT armor_pkey PRIMARY KEY (key)
 );
 
@@ -241,8 +286,9 @@ CREATE TABLE open5e.spellschools (
     key             text NOT NULL,
     name            text,
     "desc"          text,
-    document_key    text,
+    document_key    text NOT NULL,
     crossreferences jsonb,
+    derived_from    text,
     CONSTRAINT spellschools_pkey PRIMARY KEY (key)
 );
 
@@ -280,7 +326,8 @@ CREATE TABLE open5e.spells (
     shape_size         integer,
     concentration      boolean,
     crossreferences    jsonb,
-    document_key       text GENERATED ALWAYS AS ((document ->> 'key'::text)) STORED,
+    document_key       text NOT NULL,
+    derived_from         text,
     CONSTRAINT spells_pkey PRIMARY KEY (key)
 );
 
@@ -299,8 +346,9 @@ CREATE TABLE open5e.classes (
     primary_abilities jsonb,
     crossreferences   jsonb,
     hit_points        jsonb,
-    document_key      text GENERATED ALWAYS AS ((document ->> 'key'::text)) STORED,
-    subclass_of_key   text GENERATED ALWAYS AS ((subclass_of ->> 'key'::text)) STORED,
+    document_key      text NOT NULL,
+    subclass_of_key   text,
+    derived_from      text,
     CONSTRAINT classes_pkey PRIMARY KEY (key)
 );
 
@@ -311,7 +359,8 @@ CREATE TABLE open5e.backgrounds (
     name            text,
     "desc"          text,
     crossreferences jsonb,
-    document_key    text GENERATED ALWAYS AS ((document ->> 'key'::text)) STORED,
+    document_key    text NOT NULL,
+    derived_from    text,
     CONSTRAINT backgrounds_pkey PRIMARY KEY (key)
 );
 
@@ -325,7 +374,8 @@ CREATE TABLE open5e.feats (
     prerequisite     text,
     type             text,
     crossreferences  jsonb,
-    document_key     text GENERATED ALWAYS AS ((document ->> 'key'::text)) STORED,
+    document_key     text NOT NULL,
+    derived_from     text,
     CONSTRAINT feats_pkey PRIMARY KEY (key)
 );
 
@@ -338,7 +388,8 @@ CREATE TABLE open5e.species (
     "desc"            text,
     subspecies_of_key text,
     crossreferences   jsonb,
-    document_key      text GENERATED ALWAYS AS ((document ->> 'key'::text)) STORED,
+    document_key      text NOT NULL,
+    derived_from      text,
     CONSTRAINT species_pkey PRIMARY KEY (key)
 );
 
@@ -348,7 +399,8 @@ CREATE TABLE open5e.creaturetypes (
     key          text NOT NULL,
     descriptions jsonb,
     name         text,
-    document_key text,
+    document_key text NOT NULL,
+    derived_from text,
     CONSTRAINT creaturetypes_pkey PRIMARY KEY (key)
 );
 
@@ -356,50 +408,52 @@ CREATE TABLE open5e.creaturesets (
     key          text NOT NULL,
     creatures    jsonb,
     name         text,
-    document_key text,
+    document_key text NOT NULL,
+    derived_from text,
     CONSTRAINT creaturesets_pkey PRIMARY KEY (key)
 );
 
--- The JSON-shaped columns here are character varying (not jsonb) to match the existing data and entity mapping.
 CREATE TABLE open5e.creatures (
     key                        text NOT NULL,
     name                       text,
-    document                   character varying,
-    type                       character varying,
-    size                       character varying,
+    document                   jsonb,
+    type                       jsonb,
+    size                       jsonb,
     challenge_rating           double precision,
     proficiency_bonus          integer,
-    speed                      character varying,
-    speed_all                  character varying,
+    speed                      jsonb,
+    speed_all                  jsonb,
     category                   text,
     subcategory                text,
     alignment                  text,
-    languages                  character varying,
+    languages                  jsonb,
     armor_class                integer,
     armor_detail               text,
     hit_points                 integer,
     hit_dice                   text,
     experience_points          integer,
-    ability_scores             character varying,
-    modifiers                  character varying,
+    ability_scores             jsonb,
+    modifiers                  jsonb,
     initiative_bonus           integer,
-    saving_throws              character varying,
-    saving_throws_all          character varying,
-    skill_bonuses              character varying,
-    skill_bonuses_all          character varying,
+    saving_throws              jsonb,
+    saving_throws_all          jsonb,
+    skill_bonuses              jsonb,
+    skill_bonuses_all          jsonb,
     passive_perception         integer,
-    resistances_and_immunities character varying,
+    resistances_and_immunities jsonb,
     normal_sight_range         integer,
     darkvision_range           integer,
     blindsight_range           integer,
     tremorsense_range          integer,
     truesight_range            integer,
-    actions                    character varying,
-    traits                     character varying,
-    creaturesets               character varying,
-    environments               character varying,
-    illustration               character varying,
-    crossreferences            character varying,
+    actions                    jsonb,
+    traits                     jsonb,
+    creaturesets               jsonb,
+    environments               jsonb,
+    illustration               jsonb,
+    crossreferences            jsonb,
+    document_key               text NOT NULL,
+    derived_from               text,
     CONSTRAINT creatures_pkey PRIMARY KEY (key)
 );
 
@@ -412,7 +466,8 @@ CREATE TABLE open5e.rulesets (
     "desc"          text,
     rules           jsonb,
     crossreferences jsonb,
-    document_key    text GENERATED ALWAYS AS ((document ->> 'key'::text)) STORED,
+    document_key    text NOT NULL,
+    derived_from    text,
     CONSTRAINT rulesets_pkey PRIMARY KEY (key)
 );
 
@@ -422,9 +477,10 @@ CREATE TABLE open5e.rules (
     "desc"               text,
     index                integer,
     initial_header_level integer,
-    document_key         text,
+    document_key         text NOT NULL,
     ruleset              text,
     crossreferences      jsonb,
+    derived_from         text,
     CONSTRAINT rules_pkey PRIMARY KEY (key)
 );
 
@@ -435,7 +491,8 @@ CREATE TABLE open5e.images (
     alt_text     text,
     attribution  text,
     document     jsonb,
-    document_key text GENERATED ALWAYS AS ((document ->> 'key'::text)) STORED,
+    document_key text NOT NULL,
+    derived_from text,
     CONSTRAINT images_pkey PRIMARY KEY (key)
 );
 
@@ -447,7 +504,8 @@ CREATE TABLE open5e.services (
     cost            numeric,
     detail          text,
     crossreferences jsonb,
-    document_key    text GENERATED ALWAYS AS ((document ->> 'key'::text)) STORED,
+    document_key    text NOT NULL,
+    derived_from    text,
     CONSTRAINT services_pkey PRIMARY KEY (key)
 );
 
@@ -460,10 +518,13 @@ CREATE INDEX backgrounds_document_key_idx      ON open5e.backgrounds      USING 
 CREATE INDEX classes_document_key_idx          ON open5e.classes          USING btree (document_key);
 CREATE INDEX classes_subclass_of_key_idx       ON open5e.classes          USING btree (subclass_of_key);
 CREATE INDEX conditions_document_key_idx       ON open5e.conditions       USING btree (document_key);
+CREATE INDEX creatures_document_key_idx        ON open5e.creatures        USING btree (document_key);
 CREATE INDEX creatures_cr_idx                  ON open5e.creatures        USING btree (challenge_rating);
 CREATE INDEX creatures_name_lower_idx          ON open5e.creatures        USING btree (lower(name));
 CREATE INDEX creaturesets_document_key_idx     ON open5e.creaturesets     USING btree (document_key);
 CREATE INDEX creaturetypes_document_key_idx    ON open5e.creaturetypes    USING btree (document_key);
+CREATE INDEX document_members_user_id_idx     ON open5e.document_members USING btree (user_id);
+CREATE INDEX documents_owner_id_idx           ON open5e.documents        USING btree (owner_id);
 CREATE INDEX damagetypes_document_key_idx      ON open5e.damagetypes      USING btree (document_key);
 CREATE INDEX environments_document_key_idx     ON open5e.environments     USING btree (document_key);
 CREATE INDEX feats_document_key_idx            ON open5e.feats            USING btree (document_key);
@@ -503,6 +564,7 @@ ALTER TABLE open5e.backgrounds      ADD CONSTRAINT backgrounds_document_key_fk  
 ALTER TABLE open5e.classes          ADD CONSTRAINT classes_document_key_fk          FOREIGN KEY (document_key)      REFERENCES open5e.documents (key)      DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE open5e.classes          ADD CONSTRAINT classes_subclass_of_key_fk       FOREIGN KEY (subclass_of_key)   REFERENCES open5e.classes (key)        DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE open5e.conditions       ADD CONSTRAINT conditions_document_key_fk       FOREIGN KEY (document_key)      REFERENCES open5e.documents (key)      DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE open5e.creatures        ADD CONSTRAINT creatures_document_key_fk        FOREIGN KEY (document_key)      REFERENCES open5e.documents (key)      DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE open5e.creaturesets     ADD CONSTRAINT creaturesets_document_key_fk     FOREIGN KEY (document_key)      REFERENCES open5e.documents (key)      DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE open5e.creaturetypes    ADD CONSTRAINT creaturetypes_document_key_fk    FOREIGN KEY (document_key)      REFERENCES open5e.documents (key)      DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE open5e.damagetypes      ADD CONSTRAINT damagetypes_document_key_fk      FOREIGN KEY (document_key)      REFERENCES open5e.documents (key)      DEFERRABLE INITIALLY DEFERRED;
@@ -528,3 +590,35 @@ ALTER TABLE open5e.spells           ADD CONSTRAINT spells_document_key_fk       
 ALTER TABLE open5e.spellschools     ADD CONSTRAINT spellschools_document_key_fk     FOREIGN KEY (document_key)      REFERENCES open5e.documents (key)      DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE open5e.weaponproperties ADD CONSTRAINT weaponproperties_document_key_fk FOREIGN KEY (document_key)      REFERENCES open5e.documents (key)      DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE open5e.weapons          ADD CONSTRAINT weapons_document_key_fk          FOREIGN KEY (document_key)      REFERENCES open5e.documents (key)      DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE open5e.documents        ADD CONSTRAINT documents_owner_id_fk            FOREIGN KEY (owner_id)          REFERENCES open5e.users (id);
+
+-- Customized copies point at the resource they were copied from. The original can be deleted; the copy stays.
+
+ALTER TABLE open5e.abilities        ADD CONSTRAINT abilities_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.abilities (key) ON DELETE SET NULL;
+ALTER TABLE open5e.alignments       ADD CONSTRAINT alignments_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.alignments (key) ON DELETE SET NULL;
+ALTER TABLE open5e.armor            ADD CONSTRAINT armor_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.armor (key) ON DELETE SET NULL;
+ALTER TABLE open5e.backgrounds      ADD CONSTRAINT backgrounds_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.backgrounds (key) ON DELETE SET NULL;
+ALTER TABLE open5e.classes          ADD CONSTRAINT classes_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.classes (key) ON DELETE SET NULL;
+ALTER TABLE open5e.conditions       ADD CONSTRAINT conditions_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.conditions (key) ON DELETE SET NULL;
+ALTER TABLE open5e.creatures        ADD CONSTRAINT creatures_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.creatures (key) ON DELETE SET NULL;
+ALTER TABLE open5e.creaturesets     ADD CONSTRAINT creaturesets_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.creaturesets (key) ON DELETE SET NULL;
+ALTER TABLE open5e.creaturetypes    ADD CONSTRAINT creaturetypes_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.creaturetypes (key) ON DELETE SET NULL;
+ALTER TABLE open5e.damagetypes      ADD CONSTRAINT damagetypes_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.damagetypes (key) ON DELETE SET NULL;
+ALTER TABLE open5e.environments     ADD CONSTRAINT environments_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.environments (key) ON DELETE SET NULL;
+ALTER TABLE open5e.feats            ADD CONSTRAINT feats_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.feats (key) ON DELETE SET NULL;
+ALTER TABLE open5e.images           ADD CONSTRAINT images_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.images (key) ON DELETE SET NULL;
+ALTER TABLE open5e.itemcategories   ADD CONSTRAINT itemcategories_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.itemcategories (key) ON DELETE SET NULL;
+ALTER TABLE open5e.items            ADD CONSTRAINT items_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.items (key) ON DELETE SET NULL;
+ALTER TABLE open5e.itemsets         ADD CONSTRAINT itemsets_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.itemsets (key) ON DELETE SET NULL;
+ALTER TABLE open5e.languages        ADD CONSTRAINT languages_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.languages (key) ON DELETE SET NULL;
+ALTER TABLE open5e.magicitems       ADD CONSTRAINT magicitems_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.magicitems (key) ON DELETE SET NULL;
+ALTER TABLE open5e.rules            ADD CONSTRAINT rules_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.rules (key) ON DELETE SET NULL;
+ALTER TABLE open5e.rulesets         ADD CONSTRAINT rulesets_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.rulesets (key) ON DELETE SET NULL;
+ALTER TABLE open5e.services         ADD CONSTRAINT services_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.services (key) ON DELETE SET NULL;
+ALTER TABLE open5e.sizes            ADD CONSTRAINT sizes_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.sizes (key) ON DELETE SET NULL;
+ALTER TABLE open5e.skills           ADD CONSTRAINT skills_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.skills (key) ON DELETE SET NULL;
+ALTER TABLE open5e.species          ADD CONSTRAINT species_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.species (key) ON DELETE SET NULL;
+ALTER TABLE open5e.spells           ADD CONSTRAINT spells_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.spells (key) ON DELETE SET NULL;
+ALTER TABLE open5e.spellschools     ADD CONSTRAINT spellschools_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.spellschools (key) ON DELETE SET NULL;
+ALTER TABLE open5e.weaponproperties ADD CONSTRAINT weaponproperties_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.weaponproperties (key) ON DELETE SET NULL;
+ALTER TABLE open5e.weapons          ADD CONSTRAINT weapons_derived_from_fk FOREIGN KEY (derived_from) REFERENCES open5e.weapons (key) ON DELETE SET NULL;

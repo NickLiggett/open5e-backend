@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The database refuses changes to default content even if the app tried (V5 triggers), unless a transaction
+ * The database refuses changes to default content even if the app tried (V2 triggers), unless a transaction
  * explicitly allows them. Every change here is rolled back.
  */
 @SpringBootTest

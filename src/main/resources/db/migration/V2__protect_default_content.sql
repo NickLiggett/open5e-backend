@@ -1,6 +1,6 @@
 -- Default content (documents with no owner, and everything in them) can't be changed through normal writes.
--- The app already refuses such writes; this is a backstop in case of a bug. An importer that refreshes default
--- content can allow changes for its own transaction with:
+-- The app already refuses such writes (DocumentAccess); this is a backstop in case of a bug. The importer, which
+-- refreshes default content, allows changes for its own transaction with:
 --   SET LOCAL open5e.allow_default_content_changes = 'on';
 
 CREATE FUNCTION open5e.default_content_changes_allowed() RETURNS boolean LANGUAGE sql STABLE AS $$
