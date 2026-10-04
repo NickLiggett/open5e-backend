@@ -393,6 +393,32 @@ Documents include `ownerId`: compare it with `GET /api/me` to tell your own docu
 
 Content you can't see behaves as if it doesn't exist (`404`), so other users' content is never revealed.
 
+### Your settings, avatar and tracker
+
+Things that belong to you rather than to a document. They are yours alone: there is no way to read or change
+someone else's, and signing out of one browser and into another finds them as you left them.
+
+| Request | Does |
+|---|---|
+| `GET /api/me/settings` | Your settings, as far as you have chosen any: `mode` (`light`, `dark` or `system`), `primary` and `secondary` (`#rrggbb`). Also `avatarVersion` (see below), or `null` without an avatar |
+| `PUT /api/me/settings` | **Replaces** your settings with the body's. Unknown settings and bad values are a `400`. `avatarVersion` is ignored, so a fetched object can be sent back |
+| `GET /api/me/tracker` | The state you left your initiative tracker in: any JSON object you saved, or `{}` |
+| `PUT /api/me/tracker` | Replaces it. The shape is the app's to choose; it must be a JSON object of up to 256 KB (`413` beyond that) |
+| `PUT /api/me/avatar` | Sets your avatar to the body: a PNG, JPEG, WebP or GIF picture of up to 512 KB, sent as is with its `Content-Type`. The bytes must be that kind of picture (`400`), and other types, such as SVG, are a `415`. Answers `{"avatarVersion": ...}` |
+| `DELETE /api/me/avatar` | Removes it (also fine if you have none) |
+| `GET /api/users/{username}/avatar` | Anyone's avatar, as the picture itself, or `404`. **No sign-in needed**, because a browser's `<img>` can't send a token; there is no way to list users from here. Sends an `ETag` and `Cache-Control: no-cache`, so a browser keeps it and asks again each time (`304`) |
+
+`avatarVersion` is when the picture was saved (milliseconds since 1970). Add it to the avatar's address
+(`/api/users/dm/avatar?v=1759...`) to make browsers fetch a new picture straight away.
+
+```bash
+curl -X PUT -H 'X-User: dm' -H 'Content-Type: application/json' http://localhost:8080/api/me/settings   -d '{"mode": "dark", "primary": "#2e7d32", "secondary": "#8d6e63"}'
+curl -X PUT -H 'X-User: dm' -H 'Content-Type: image/png' --data-binary @me.png http://localhost:8080/api/me/avatar
+curl -o dm.png http://localhost:8080/api/users/dm/avatar
+```
+
+They are kept in the tables `user_settings`, `user_avatars` and `user_tracker_states`, and deleted with the user.
+
 ## Refreshing default content
 
 The importer loads or refreshes the default content from the [Open5e API](https://api.open5e.com/v2/) without
@@ -467,8 +493,9 @@ Flyway manages the `open5e` schema. Migrations are in `src/main/resources/db/mig
 |---|---|
 | `V1__create_schema.sql` | The whole schema: the 33 Open5e content tables (`jsonb` for JSON data, a `document_key` and `derived_from` on every resource), users, document owners and sharing (`document_members`), indexes and foreign keys |
 | `V2__protect_default_content.sql` | Triggers that refuse changes to default content and default documents. A transaction can opt out with `SET LOCAL open5e.allow_default_content_changes = 'on'`, as the importer does |
+| `V3__user_data.sql` | `user_settings`, `user_avatars` and `user_tracker_states`: what belongs to a user rather than to a document, deleted with the user |
 
-- **Empty database:** Flyway runs both migrations, creating an empty schema; the importer fills it.
+- **Empty database:** Flyway runs all the migrations, creating an empty schema; the importer fills it.
 - **Restored dump** of this app's database: it includes Flyway's history table, so Flyway finds the schema up to date
   and only runs migrations added since the dump was made.
 - Hibernate runs with `ddl-auto=validate`: it checks the entities against the schema at startup and never changes
@@ -523,6 +550,8 @@ src/main/java/com/main/app
 │                      ResourceWriter (create/replace/update/delete/copy for every resource)
 ├── user/              Sign-in (SecurityConfig), CurrentUser and its dev (X-User) and token (JWT)
 │                      implementations, /api/me
+├── profile/           A user's own settings, avatar picture and tracker state (/api/me/...), and avatars
+│                      for everyone to see (/api/users/{username}/avatar)
 ├── importer/          Loading and refreshing default content from the Open5e API
 ├── creature/          creatures, creature types, creature sets
 ├── spell/             spells, spell schools

@@ -41,8 +41,9 @@ public class DefaultContentImporter {
 
     private static final Logger log = LoggerFactory.getLogger(DefaultContentImporter.class);
 
-    /** Tables that aren't Open5e content. */
-    private static final Set<String> NOT_CONTENT = Set.of("flyway_schema_history", "users", "document_members");
+    /** Tables that aren't Open5e content. Any table that is not an Open5e endpoint must be listed here. */
+    private static final Set<String> NOT_CONTENT = Set.of("flyway_schema_history", "users", "document_members",
+            "user_settings", "user_avatars", "user_tracker_states");
     /** Columns the app owns; upstream never sets them. */
     private static final Set<String> APP_COLUMNS = Set.of("derived_from", "owner_id");
     private static final Pattern CAMEL = Pattern.compile("([a-z0-9])([A-Z])");
