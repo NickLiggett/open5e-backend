@@ -648,6 +648,16 @@ use transactions that are rolled back. To run them against another database, set
 `EndpointSmokeTest` treats every controller as a table, apart from `/api/me` and `/api/users`; add a controller that
 isn't one to its `NOT_RESOURCES`.
 
+### Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`:
+
+- **Test:** starts a `postgres:18` service on port 5434 (the port the tests expect), starts the app once with the
+  `import` profile, which creates the schema and loads the default content from the Open5e API (about a minute, and it
+  needs `api.open5e.com`), then runs `./gradlew test`. The test report is kept as an artifact when it fails.
+- **Docker image:** builds the image from the `Dockerfile` without publishing it, to catch a Dockerfile that has stopped
+  working.
+
 ## Project structure
 
 ```
