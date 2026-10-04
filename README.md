@@ -202,11 +202,35 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/me
 |---|---|
 | Keycloak | <http://localhost:8180>, admin console user `admin`, password `admin` |
 | Realm | `open5e`, from `docker/keycloak/open5e-realm.json` |
-| Client | `open5e-cli`: public, password grant for curl/Postman, redirect URIs `http://localhost:*` for a local frontend |
+| Clients | `initiative-tracker`: the web app, authorization code flow with PKCE required, no password grant. `open5e-cli`: public, with the password grant for curl/Postman. Both accept redirect URIs `http://localhost:*`, any origin, and put the `open5e-api` audience in access tokens |
 | Test users | `dm`, `player`, `stranger` (password = username) |
+| Mail | Mailpit, <http://localhost:8025>: catches the emails Keycloak sends |
 
-Tokens last an hour. The password grant is only for local testing; a real frontend would use the authorization
-code flow. Run `docker compose up -d app` afterwards to go back to the `dev` profile.
+Tokens last an hour. The password grant is only for local testing; the web app uses the authorization code flow.
+Run `docker compose up -d app` afterwards to go back to the `dev` profile.
+
+#### Registration, password reset and the web app
+
+The realm lets people **register** themselves (a "Register" link on Keycloak's sign-in page, with no email
+verification locally) and **reset a forgotten password** ("Forgot Password?"). The reset email goes to Mailpit, not
+the internet: open <http://localhost:8025>, open the message and follow the link. The
+[web app](https://github.com/NickLiggett/initiative-tracker-v0.1) sends people to those pages from its own login page.
+
+To try only Keycloak and the mail catcher, next to the app in the `dev` profile (for example while working on a
+frontend that runs its own backend):
+
+```sh
+docker compose -f compose.yaml -f compose.auth.yaml up -d keycloak mailpit
+```
+
+- **The realm is imported only when Keycloak first starts.** After changing `open5e-realm.json`, recreate it with
+  `docker compose -f compose.yaml -f compose.auth.yaml rm -sf keycloak`, then the `up -d keycloak` above. Accounts made
+  in Keycloak are lost (they are in its own memory); the app's users and their data are not.
+- **Browsers need `webOrigins`.** A browser can read Keycloak's token answer only if the client lists the page's origin
+  (CORS). `curl` doesn't care, so a client without it works until a web app tries it. Here it is `*`, which suits a
+  local realm; a real one should list the app's address.
+- **Production:** turn on `verifyEmail`, set a real `smtpServer`, list the app's real redirect URIs and web origin
+  instead of `http://localhost:*` and `*`, and add a password policy.
 
 For production, point `OIDC_ISSUER_URI` at your provider (e.g. Auth0, a hosted Keycloak) and have it issue tokens
 with the `open5e-api` audience. The code doesn't change.
