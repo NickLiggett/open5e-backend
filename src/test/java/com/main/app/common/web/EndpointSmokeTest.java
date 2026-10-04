@@ -31,7 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class EndpointSmokeTest {
 
     /** Endpoints that aren't a table. */
-    private static final Set<String> NOT_RESOURCES = Set.of("/api/me", "/api/users", "/api/players");
+    private static final Set<String> NOT_RESOURCES = Set.of("/api/me", "/api/users", "/api/players", "/api/party");
 
     @Autowired
     private MockMvc mvc;

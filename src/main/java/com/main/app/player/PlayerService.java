@@ -16,8 +16,9 @@ import java.util.Set;
 /**
  * Player characters. A character belongs to the user who made it (the owner), who can change anything about it and
  * delete it. It can name the user who plays it: they see it and can keep its numbers up to date (level, armor class,
- * hit points, initiative bonus, notes), but can't rename it, change its rules, or hand it on. Anyone else can't see it
- * at all, which is reported as not found.
+ * hit points, initiative bonus, notes), but can't rename it, change its rules, or hand it on. A DM whose party the
+ * owner or the player has accepted can see it and nothing more. Anyone else can't see it at all, which is reported as
+ * not found.
  */
 @Service
 @Transactional
@@ -28,12 +29,17 @@ public class PlayerService {
 
     private static final String SELECT = """
             select p.id, p.name, p.ruleset, p.class_key, p.class_name, p.species_key, p.species_name, p.level,
-                   p.armor_class, p.hit_points, p.initiative_bonus, p.notes, p.owner_id, o.username as owner,
-                   pb.username as played_by, p.created_at, p.updated_at
+                   p.armor_class, p.hit_points, p.initiative_bonus, p.notes, p.owner_id, p.played_by as played_by_id,
+                   o.username as owner, pb.username as played_by, p.created_at, p.updated_at
             from open5e.player_characters p
             join open5e.users o on o.id = p.owner_id
             left join open5e.users pb on pb.id = p.played_by
             """;
+
+    /** Whether the user asking (the {@code ?}) has the owner or the player of the character in their party. */
+    private static final String IN_MY_PARTY = """
+            exists (select 1 from open5e.party_members m where m.dm_id = ? and m.status = 'ACCEPTED'
+                    and (m.user_id = p.owner_id or m.user_id = p.played_by))""";
 
     private final CurrentUser currentUser;
     private final JdbcTemplate jdbc;
@@ -49,6 +55,14 @@ public class PlayerService {
         long me = requireUser();
         return jdbc.query(SELECT + " where p.owner_id = ? or p.played_by = ? order by lower(p.name), p.id",
                 mapper(me), me, me);
+    }
+
+    /** The characters of the people in the current user's party, other than their own, by name. */
+    @Transactional(readOnly = true)
+    public List<PlayerDTO> party() {
+        long me = requireUser();
+        return jdbc.query(SELECT + " where p.owner_id <> ? and (p.played_by is null or p.played_by <> ?) and "
+                + IN_MY_PARTY + " order by lower(p.name), p.id", mapper(me), me, me, me);
     }
 
     @Transactional(readOnly = true)
@@ -80,6 +94,9 @@ public class PlayerService {
         long me = requireUser();
         PlayerDTO existing = visible(id, me);
         Clean clean = clean(request);
+        if (existing.role().equals("PARTY")) {
+            throw readOnly(existing);
+        }
         if (existing.role().equals("OWNER")) {
             jdbc.update("""
                     update open5e.player_characters set played_by = ?, name = ?, ruleset = ?, class_key = ?,
@@ -120,7 +137,8 @@ public class PlayerService {
     }
 
     private PlayerDTO visible(long id, long me) {
-        return jdbc.query(SELECT + " where p.id = ? and (p.owner_id = ? or p.played_by = ?)", mapper(me), id, me, me)
+        return jdbc.query(SELECT + " where p.id = ? and (p.owner_id = ? or p.played_by = ? or " + IN_MY_PARTY + ")",
+                        mapper(me), id, me, me, me)
                 .stream().findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No player " + id));
     }
@@ -130,8 +148,20 @@ public class PlayerService {
                 rs.getString("class_key"), rs.getString("class_name"), rs.getString("species_key"),
                 rs.getString("species_name"), rs.getInt("level"), rs.getObject("armor_class", Integer.class),
                 rs.getObject("hit_points", Integer.class), rs.getInt("initiative_bonus"), rs.getString("notes"),
-                rs.getString("owner"), rs.getString("played_by"), rs.getLong("owner_id") == me ? "OWNER" : "PLAYER",
+                rs.getString("owner"), rs.getString("played_by"), role(rs.getLong("owner_id"), rs.getObject("played_by_id", Long.class), me),
                 rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant());
+    }
+
+    private static String role(long ownerId, Long playedById, long me) {
+        if (ownerId == me) {
+            return "OWNER";
+        }
+        return playedById != null && playedById == me ? "PLAYER" : "PARTY";
+    }
+
+    private static ResponseStatusException readOnly(PlayerDTO player) {
+        return new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "You can see " + player.name() + " because they're in your party, but not change it");
     }
 
     /** The id of the user who plays the character; none if it's the owner, who needs no special mention. */
