@@ -1,7 +1,9 @@
 # Adds Keycloak and runs the app with real sign-in (bearer tokens) instead of the X-User header:
 #   docker compose -f compose.yaml -f compose.auth.yaml up --build
 # Keycloak: http://localhost:8180 (admin console: admin / admin). Test users dm, player and stranger; each user's
-# password is their username. See the README for getting a token.
+# password is their username. People can also register themselves and reset their passwords there.
+# Mailpit catches the emails Keycloak sends (password resets) instead of sending them: http://localhost:8025.
+# See the README for getting a token.
 
 services:
   keycloak:
@@ -24,6 +26,12 @@ services:
       timeout: 5s
       retries: 30
       start_period: 20s
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025" # the inbox, in a browser
+      - "1025:1025" # SMTP, which Keycloak sends to as mailpit:1025
 
   app:
     depends_on:
