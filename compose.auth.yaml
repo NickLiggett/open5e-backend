@@ -2,7 +2,7 @@
 #   docker compose -f compose.yaml -f compose.auth.yaml up --build
 # Keycloak: http://localhost:8180 (admin console: admin / admin). Test users dm, player and stranger; each user's
 # password is their username. People can also register themselves and reset their passwords there.
-# Mailpit catches the emails Keycloak sends (password resets) instead of sending them: http://localhost:8025.
+# Mailpit catches the emails Keycloak sends (password resets, email verification) and the app's invitations instead of sending them: http://localhost:8025.
 # See the README for getting a token.
 
 services:
@@ -40,6 +40,8 @@ services:
     environment:
       # Any profile but dev signs requests in with bearer tokens.
       SPRING_PROFILES_ACTIVE: default
+      # Invitation emails go to Mailpit too.
+      SPRING_MAIL_HOST: mailpit
       # Tokens say they come from localhost:8180 (what clients use); inside Compose the keys are fetched directly.
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8180/realms/open5e
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/open5e/protocol/openid-connect/certs

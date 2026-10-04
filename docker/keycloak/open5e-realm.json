@@ -7,7 +7,7 @@
   "rememberMe": true,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
-  "verifyEmail": false,
+  "verifyEmail": true,
   "accessTokenLifespan": 3600,
   "smtpServer": {
     "host": "mailpit",
