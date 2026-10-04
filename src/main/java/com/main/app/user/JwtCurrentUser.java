@@ -39,7 +39,8 @@ public class JwtCurrentUser implements CurrentUser {
             Jwt jwt = token.getToken();
             String subject = jwt.getClaimAsString("iss") + "|" + jwt.getSubject();
             request.setAttribute(REQUEST_ATTRIBUTE, userService.findOrCreateFromToken(subject,
-                    jwt.getClaimAsString("preferred_username"), jwt.getClaimAsString("name")));
+                    jwt.getClaimAsString("preferred_username"), jwt.getClaimAsString("name"),
+                    jwt.getClaimAsString("email"), jwt.getClaimAsBoolean("email_verified")));
         }
     }
 

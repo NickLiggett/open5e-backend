@@ -35,9 +35,21 @@ public class UserService {
      * the token's preferred username, made to fit the username rules; if another user has it, {@code -2}, {@code -3},
      * … is added. Safe to call concurrently.
      *
-     * @param idpSubject the token's issuer and subject, which together identify the person
+     * The token's email address is remembered only when the sign-in service says the person has verified it; that is
+     * what lets them accept the invitations sent to it (see {@link #recordEmail}).
+     *
+     * @param idpSubject    the token's issuer and subject, which together identify the person
+     * @param email         the token's {@code email} claim, if it has one
+     * @param emailVerified the token's {@code email_verified} claim, if it has one
      */
-    public User findOrCreateFromToken(String idpSubject, String preferredUsername, String displayName) {
+    public User findOrCreateFromToken(String idpSubject, String preferredUsername, String displayName, String email,
+                                      Boolean emailVerified) {
+        User user = findOrCreateFromToken(idpSubject, preferredUsername, displayName);
+        recordEmail(user, email, emailVerified);
+        return user;
+    }
+
+    private User findOrCreateFromToken(String idpSubject, String preferredUsername, String displayName) {
         Optional<User> existing = find("idp_subject", idpSubject);
         if (existing.isPresent()) {
             return existing.get();
@@ -54,6 +66,38 @@ public class UserService {
             }
         }
         throw new IllegalStateException("No free username for '" + base + "'");
+    }
+
+    /**
+     * Keeps the user's verified address in step with the token: set when verified, cleared when the token says it
+     * isn't, left alone when the token doesn't say. When the address is new to the user, the invitations sent to it
+     * are accepted: each becomes a membership (never lowering a role they have), and all of them are deleted.
+     */
+    private void recordEmail(User user, String email, Boolean emailVerified) {
+        if (emailVerified == null) {
+            return;
+        }
+        String verified = emailVerified ? Emails.normalize(email) : null;
+        if (emailVerified && verified == null) {
+            return; // verified, but not an address we can compare
+        }
+        int changed = jdbc.update("update open5e.users set verified_email = ? where id = ? and verified_email is distinct from ?",
+                verified, user.id(), verified);
+        if (changed == 1 && verified != null) {
+            acceptInvitations(user.id(), verified);
+        }
+    }
+
+    private void acceptInvitations(long userId, String email) {
+        jdbc.update("""
+                insert into open5e.document_members (document_key, user_id, role)
+                select i.document_key, ?, i.role from open5e.document_invitations i
+                join open5e.documents d on d.key = i.document_key
+                where i.email = ? and i.expires_at > now() and d.owner_id is distinct from ?
+                on conflict (document_key, user_id) do update set role =
+                    case when open5e.document_members.role = 'EDITOR' or excluded.role = 'EDITOR' then 'EDITOR' else 'VIEWER' end""",
+                userId, email, userId);
+        jdbc.update("delete from open5e.document_invitations where email = ?", email);
     }
 
     private Optional<User> find(String column, String value) {

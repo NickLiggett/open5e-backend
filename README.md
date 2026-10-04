@@ -204,16 +204,17 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/me
 | Realm | `open5e`, from `docker/keycloak/open5e-realm.json` |
 | Clients | `initiative-tracker`: the web app, authorization code flow with PKCE required, no password grant. `open5e-cli`: public, with the password grant for curl/Postman. Both accept redirect URIs `http://localhost:*`, any origin, and put the `open5e-api` audience in access tokens |
 | Test users | `dm`, `player`, `stranger` (password = username) |
-| Mail | Mailpit, <http://localhost:8025>: catches the emails Keycloak sends |
+| Mail | Mailpit, <http://localhost:8025>: catches the emails Keycloak sends, and the app's invitations |
 
 Tokens last an hour. The password grant is only for local testing; the web app uses the authorization code flow.
 Run `docker compose up -d app` afterwards to go back to the `dev` profile.
 
 #### Registration, password reset and the web app
 
-The realm lets people **register** themselves (a "Register" link on Keycloak's sign-in page, with no email
-verification locally) and **reset a forgotten password** ("Forgot Password?"). The reset email goes to Mailpit, not
-the internet: open <http://localhost:8025>, open the message and follow the link. The
+The realm lets people **register** themselves (a "Register" link on Keycloak's sign-in page) and **reset a forgotten
+password** ("Forgot Password?"). New accounts must **verify their email address** before they can sign in, and the
+reset and verification emails go to Mailpit, not the internet: open <http://localhost:8025>, open the message and
+follow the link. (Verification matters: an [invitation](#email-invitations) is accepted only by a verified address.) The
 [web app](https://github.com/NickLiggett/initiative-tracker-v0.1) sends people to those pages from its own login page.
 
 To try only Keycloak and the mail catcher, next to the app in the `dev` profile (for example while working on a
@@ -229,7 +230,7 @@ docker compose -f compose.yaml -f compose.auth.yaml up -d keycloak mailpit
 - **Browsers need `webOrigins`.** A browser can read Keycloak's token answer only if the client lists the page's origin
   (CORS). `curl` doesn't care, so a client without it works until a web app tries it. Here it is `*`, which suits a
   local realm; a real one should list the app's address.
-- **Production:** turn on `verifyEmail`, set a real `smtpServer`, list the app's real redirect URIs and web origin
+- **Production:** keep `verifyEmail` on, set a real `smtpServer`, list the app's real redirect URIs and web origin
   instead of `http://localhost:*` and `*`, and add a password policy.
 
 For production, point `OIDC_ISSUER_URI` at your provider (e.g. Auth0, a hosted Keycloak) and have it issue tokens
@@ -405,6 +406,30 @@ curl -X PATCH -H 'X-User: dm' -H 'Content-Type: application/json' \
 
 Documents include `ownerId`: compare it with `GET /api/me` to tell your own documents apart.
 
+#### Email invitations
+
+Sharing by username needs the other person to have signed in once. To share with someone who hasn't, invite their
+email address (owner only):
+
+| Request | Does |
+|---|---|
+| `POST /api/documents/{key}/invitations` | Invites an address. Body: `{"email": "a@b.com", "role": "VIEWER"}` (or `EDITOR`). Answers `{email, role, username, emailSent}` |
+| `GET /api/documents/{key}/invitations` | The pending invitations: `id`, `email`, `role`, `invitedBy`, `createdAt`, `expiresAt` |
+| `DELETE /api/documents/{key}/invitations/{id}` | Cancels one |
+
+- **An invitation is for one address, not a link.** It is accepted when someone signs in with that address and the
+  token says it is **verified** (`email` and `email_verified` claims). An address the sign-in service hasn't verified
+  accepts nothing, so nobody can claim an invitation by registering with an address they don't own. Accepting adds
+  them to the document with the invited role (never lowering one they already have) and deletes the invitation.
+- **If the address already belongs to a user** (verified), they're added at once: `username` is set in the answer, and
+  there's no invitation and no email.
+- Inviting an address again changes the role, renews it and sends the email again. Invitations expire after 30 days
+  and a document can have 50 pending.
+- **The email** is sent through SMTP (`spring.mail.*`, `app.mail.from`; `app.public-url` is the web app's address in
+  the message). Locally that is the Mailpit in `compose.auth.yaml` (`SPRING_MAIL_HOST=mailpit` in the container;
+  `localhost:1025` otherwise). If it can't be sent the invitation is still kept and `emailSent` is `false`.
+- In the `dev` profile (no email in sign-in) invitations can be made but never accepted.
+
 ### Who can change what
 
 | | See its content | Add, change, delete content | Rename, delete, manage members |
@@ -523,6 +548,7 @@ Flyway manages the `open5e` schema. Migrations are in `src/main/resources/db/mig
 | `V1__create_schema.sql` | The whole schema: the 33 Open5e content tables (`jsonb` for JSON data, a `document_key` and `derived_from` on every resource), users, document owners and sharing (`document_members`), indexes and foreign keys |
 | `V2__protect_default_content.sql` | Triggers that refuse changes to default content and default documents. A transaction can opt out with `SET LOCAL open5e.allow_default_content_changes = 'on'`, as the importer does |
 | `V3__user_data.sql` | `user_settings`, `user_avatars` and `user_tracker_states`: what belongs to a user rather than to a document, deleted with the user |
+| `V4__email_invitations.sql` | `users.verified_email` and `document_invitations`: pending invitations for an email address, deleted with the document or the inviter |
 
 - **Empty database:** Flyway runs all the migrations, creating an empty schema; the importer fills it.
 - **Restored dump** of this app's database: it includes Flyway's history table, so Flyway finds the schema up to date
@@ -559,6 +585,7 @@ use transactions that are rolled back. To run them against another database, set
 | `DefaultContentProtectionTest` | The database refuses changes to default content and documents unless a transaction opts in |
 | `VisibilityTest`, `AnonymousVisibilityTest` | Who sees what through real requests: owners, members, strangers, anonymous requests |
 | `TokenSignInTest` | Token sign-in: first sign-in, username clashes, signed-in writes, invalid tokens |
+| `InvitationTest` | Email invitations: sending, accepting on a verified sign-in, unverified or expired addresses, roles, direct adds, cancelling, owner-only, limits (the mail server is a mock) |
 | `ProfileTest` | A user's own settings, avatar picture and tracker state through real requests: validation, replacing, separate users, size limits, picture types and contents, `ETag`/`304`, deleting a user deletes it all |
 | `ProfileSignInTest` | The same with token sign-in: only the signed-in user can read or change theirs, but anyone can see an avatar |
 | `OwnedResourceMappingTest` | Every entity for a table with a `document_key` is covered by the visibility filter; no collection mappings |
@@ -630,8 +657,6 @@ Not started yet, roughly in order of usefulness:
   `/api/creatures/test`, and a scheduled importer run to pick up Open5e updates.
 - **Account management.** Linking a dev-profile user to a signed-in identity, display names, and deleting accounts
   (today a user who owns documents can't be deleted).
-- **Email invitations** to shared documents, for people who have never signed in (sharing needs their username, and
-  so a first sign-in, today).
 - **Better search.** Full-text search across names and descriptions, and more filters (e.g. by creature environment
   or spell components).
 - **Images.** Open5e image paths (`/static/img/…`) point at Open5e's own site; serve or proxy them so they work

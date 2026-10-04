@@ -28,12 +28,14 @@ public class DocumentController {
     private final DocumentRepository documentRepository;
     private final ResourceQueries queries;
     private final DocumentService documentService;
+    private final InvitationService invitationService;
 
     public DocumentController(DocumentRepository documentRepository, ResourceQueries queries,
-                              DocumentService documentService) {
+                              DocumentService documentService, InvitationService invitationService) {
         this.documentRepository = documentRepository;
         this.queries = queries;
         this.documentService = documentService;
+        this.invitationService = invitationService;
     }
 
     @GetMapping
@@ -78,6 +80,27 @@ public class DocumentController {
     @DeleteMapping("/{key}/members/{username}")
     public ResponseEntity<Void> unshare(@PathVariable String key, @PathVariable String username) {
         documentService.unshare(key, username);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Pending invitations by email address. Owner only. */
+    @GetMapping("/{key}/invitations")
+    public List<InvitationDTO> invitations(@PathVariable String key) {
+        return invitationService.list(key);
+    }
+
+    /**
+     * Invites an email address. If it belongs to a user who has verified it they're added at once; otherwise they're
+     * emailed, and get access when they sign in with that address.
+     */
+    @PostMapping("/{key}/invitations")
+    public InvitationResult invite(@PathVariable String key, @RequestBody InvitationRequest request) {
+        return invitationService.invite(key, request);
+    }
+
+    @DeleteMapping("/{key}/invitations/{id}")
+    public ResponseEntity<Void> cancelInvitation(@PathVariable String key, @PathVariable long id) {
+        invitationService.cancel(key, id);
         return ResponseEntity.noContent().build();
     }
 }
