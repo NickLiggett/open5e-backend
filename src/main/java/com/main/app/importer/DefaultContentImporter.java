@@ -43,7 +43,7 @@ public class DefaultContentImporter {
 
     /** Tables that aren't Open5e content. Any table that is not an Open5e endpoint must be listed here. */
     private static final Set<String> NOT_CONTENT = Set.of("flyway_schema_history", "users", "document_members",
-            "user_settings", "user_avatars", "user_tracker_states", "document_invitations");
+            "user_settings", "user_avatars", "user_tracker_states", "document_invitations", "player_characters", "party_members");
     /** Columns the app owns; upstream never sets them. */
     private static final Set<String> APP_COLUMNS = Set.of("derived_from", "owner_id");
     private static final Pattern CAMEL = Pattern.compile("([a-z0-9])([A-Z])");

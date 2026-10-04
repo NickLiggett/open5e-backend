@@ -468,6 +468,54 @@ curl -o dm.png http://localhost:8080/api/users/dm/avatar
 
 They are kept in the tables `user_settings`, `user_avatars` and `user_tracker_states`, and deleted with the user.
 
+### Players
+
+Player characters: the people a table plays, kept on your account so they can be dropped into an initiative order. Not
+Open5e content and not in a document, so nothing here is shared the way homebrew is. Signing in is required.
+
+| Request | Does |
+|---|---|
+| `GET /api/players` | The characters you own or play, by name |
+| `GET /api/players/{id}` | One of them. Anyone else's is a `404` |
+| `POST /api/players` | Makes one you own |
+| `PUT /api/players/{id}` | Replaces it |
+| `DELETE /api/players/{id}` | Deletes it. Owner only |
+
+A character has `name` (up to 60 characters) and `ruleset` (`5e-2014` or `5e-2024`, the game system keys), and
+optionally `classKey` / `className`, `speciesKey` / `speciesName` (the names are what is shown; the keys say which
+Open5e class or species was picked, if any), `level` (1 to 20, default 1), `armorClass` (0 to 40), `hitPoints` (0 to
+9999, the maximum), `initiativeBonus` (-10 to 30, default 0), `notes` (up to 5000 characters) and `playedBy`, the
+username of the user who plays it (a leading `@` is fine). Answers add `id`, `owner`, `role` (`OWNER`, `PLAYER` if you
+only play it, or `PARTY` if you can only see it because it belongs to someone in your [party](#party)) and
+`createdAt` / `updatedAt`. You can own up to 100.
+
+- **The owner** can change anything and delete it.
+- **The user who plays it** sees it and can change its numbers: `level`, `armorClass`, `hitPoints`, `initiativeBonus`
+  and `notes`. Changing the name, rules, class, species or who plays it is a `403`. Playing your own character needs no
+  mention (`playedBy` comes back empty).
+- **A DM** whose party the owner or the player has joined can read it (`GET /api/players/{id}`), and nothing more:
+  changing or deleting it is a `403`.
+- If the user who plays it is deleted, the character stays with its owner, unassigned.
+
+They are kept in `player_characters`.
+
+#### Party
+
+A DM asks users to join their party. A user is in it only once they **accept**, and a pending request shows the DM
+nothing. Either side can end it at any time; the characters stay with their owners.
+
+| Request | Does |
+|---|---|
+| `GET /api/party` | Your party: `{username, status}`, `status` being `PENDING` or `ACCEPTED` |
+| `PUT /api/party/members/{username}` | Asks a user to join (`404` if there is no such user, `400` for yourself or beyond 30 people). Asking again changes nothing |
+| `DELETE /api/party/members/{username}` | Removes them, or withdraws the request |
+| `GET /api/party/players` | The characters of the people who have accepted, whether they own or play them, leaving out your own. Read-only (`role` is `PARTY`) |
+| `GET /api/party/invitations` | The parties you have been asked to join or are in: `{dm, status}` |
+| `POST /api/party/invitations/{dm}/accept` | Joins that DM's party |
+| `DELETE /api/party/invitations/{dm}` | Turns the request down, or leaves the party |
+
+They are kept in `party_members`, deleted with either user.
+
 ## Refreshing default content
 
 The importer loads or refreshes the default content from the [Open5e API](https://api.open5e.com/v2/) without
@@ -549,6 +597,8 @@ Flyway manages the `open5e` schema. Migrations are in `src/main/resources/db/mig
 | `V2__protect_default_content.sql` | Triggers that refuse changes to default content and default documents. A transaction can opt out with `SET LOCAL open5e.allow_default_content_changes = 'on'`, as the importer does |
 | `V3__user_data.sql` | `user_settings`, `user_avatars` and `user_tracker_states`: what belongs to a user rather than to a document, deleted with the user |
 | `V4__email_invitations.sql` | `users.verified_email` and `document_invitations`: pending invitations for an email address, deleted with the document or the inviter |
+| `V5__player_characters.sql` | `player_characters`: a user's player characters, with the rules they use and optionally the user who plays them; deleted with the owner |
+| `V6__parties.sql` | `party_members`: the users a DM has asked to join their party, and whether they have accepted |
 
 - **Empty database:** Flyway runs all the migrations, creating an empty schema; the importer fills it.
 - **Restored dump** of this app's database: it includes Flyway's history table, so Flyway finds the schema up to date
@@ -585,6 +635,8 @@ use transactions that are rolled back. To run them against another database, set
 | `DefaultContentProtectionTest` | The database refuses changes to default content and documents unless a transaction opts in |
 | `VisibilityTest`, `AnonymousVisibilityTest` | Who sees what through real requests: owners, members, strangers, anonymous requests |
 | `TokenSignInTest` | Token sign-in: first sign-in, username clashes, signed-in writes, invalid tokens |
+| `PartyTest` | Parties: pending requests show nothing, accepting, read-only access to party characters (owned or played), leaving, removing, withdrawing, size limit, deleting the DM |
+| `PlayerTest`, `PlayerSignInTest` | Player characters: owner and player permissions, strangers, validation, limits, deleting the user who plays one, and refusing anonymous requests |
 | `InvitationTest` | Email invitations: sending, accepting on a verified sign-in, unverified or expired addresses, roles, direct adds, cancelling, owner-only, limits (the mail server is a mock) |
 | `ProfileTest` | A user's own settings, avatar picture and tracker state through real requests: validation, replacing, separate users, size limits, picture types and contents, `ETag`/`304`, deleting a user deletes it all |
 | `ProfileSignInTest` | The same with token sign-in: only the signed-in user can read or change theirs, but anyone can see an avatar |
@@ -613,6 +665,7 @@ src/main/java/com/main/app
 │                      implementations, /api/me
 ├── profile/           A user's own settings, avatar picture and tracker state (/api/me/...), and avatars
 │                      for everyone to see (/api/users/{username}/avatar)
+├── player/            Player characters (/api/players): owner, the user who plays them, and the DM's party (/api/party)
 ├── importer/          Loading and refreshing default content from the Open5e API
 ├── creature/          creatures, creature types, creature sets
 ├── spell/             spells, spell schools
