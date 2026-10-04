@@ -422,7 +422,12 @@ They are kept in the tables `user_settings`, `user_avatars` and `user_tracker_st
 ## Refreshing default content
 
 The importer loads or refreshes the default content from the [Open5e API](https://api.open5e.com/v2/) without
-touching users' content. It runs as a command, not a web server:
+touching users' content. It runs as a command, not a web server.
+
+It takes every table in the schema to be an Open5e endpoint, except those in `NOT_CONTENT` in `DefaultContentImporter`
+(`flyway_schema_history`, `users`, `document_members` and the user data tables). **A new table that isn't Open5e
+content must be added there**, or the next import will try to fetch and prune it; `ImportMappingTest` fails if it
+isn't.
 
 ```sh
 # With Docker (the database must be running): report what would change, without writing anything
@@ -530,10 +535,15 @@ use transactions that are rolled back. To run them against another database, set
 | `DefaultContentProtectionTest` | The database refuses changes to default content and documents unless a transaction opts in |
 | `VisibilityTest`, `AnonymousVisibilityTest` | Who sees what through real requests: owners, members, strangers, anonymous requests |
 | `TokenSignInTest` | Token sign-in: first sign-in, username clashes, signed-in writes, invalid tokens |
+| `ProfileTest` | A user's own settings, avatar picture and tracker state through real requests: validation, replacing, separate users, size limits, picture types and contents, `ETag`/`304`, deleting a user deletes it all |
+| `ProfileSignInTest` | The same with token sign-in: only the signed-in user can read or change theirs, but anyone can see an avatar |
 | `OwnedResourceMappingTest` | Every entity for a table with a `document_key` is covered by the visibility filter; no collection mappings |
 | `ImportMappingTest` | One recorded row per Open5e endpoint (`src/test/resources/import-fixtures/`) maps onto its table |
 | `ImportMergeTest` | Merging upstream rows: inserts, updates, deletes, user content untouched, the deletion guard, dry runs, UTC timestamps |
 | `ApiUrlsTest` | Which links are rewritten, and which are left alone |
+
+`EndpointSmokeTest` treats every controller as a table, apart from `/api/me` and `/api/users`; add a controller that
+isn't one to its `NOT_RESOURCES`.
 
 ## Project structure
 
@@ -584,17 +594,20 @@ Not started yet, roughly in order of usefulness:
 - **Tests that don't need a local database.** Run the tests against a throwaway Postgres (Testcontainers) loaded
   with the importer's fixtures or a small dump, instead of the Compose database, so they work anywhere.
 - **Continuous integration.** A GitHub Actions workflow that builds and tests every push and pull request.
-- **A frontend.** A web client using the authorization code flow for sign-in; the API would then need CORS settings
-  for the frontend's origin.
+- **Sign-in in the frontend.** The frontend ([initiative-tracker](../initiative-tracker-v0.1)) uses the `dev`
+  profile's `X-User` header; it still needs the authorization code flow against Keycloak (with registration and
+  password reset), and the API would then need CORS settings for its origin or a proxy, as in development.
 - **API documentation.** Generated OpenAPI docs and a Swagger UI (e.g. springdoc), so the endpoints and filters
   don't have to be read from this README.
 - **Safe concurrent edits.** A version column and `If-Match`/ETag checks, so two people editing the same resource
-  don't silently overwrite each other (today the last write wins).
+  don't silently overwrite each other (today the last write wins, for a user's saved tracker and settings too).
 - **Production deployment.** A hosted identity provider, secrets instead of the dev defaults in
   `application.properties`, a published app image, a health endpoint (Spring Boot Actuator) instead of
   `/api/creatures/test`, and a scheduled importer run to pick up Open5e updates.
 - **Account management.** Linking a dev-profile user to a signed-in identity, display names, and deleting accounts
   (today a user who owns documents can't be deleted).
+- **Email invitations** to shared documents, for people who have never signed in (sharing needs their username, and
+  so a first sign-in, today).
 - **Better search.** Full-text search across names and descriptions, and more filters (e.g. by creature environment
   or spell components).
 - **Images.** Open5e image paths (`/static/img/…`) point at Open5e's own site; serve or proxy them so they work
