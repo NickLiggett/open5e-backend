@@ -1,0 +1,126 @@
+# Production stack, run on one server (see deploy/README.md):
+#   Caddy      the only thing facing the internet: HTTPS certificates, then /api to the backend, the rest to the web app,
+#              and auth.<domain> to Keycloak
+#   frontend   the web app (nginx serving files)
+#   backend    this API, with bearer-token sign-in (never the dev profile)
+#   db         Postgres, with a second database for Keycloak
+#   keycloak   sign-in, registration and password reset
+# Everything is configured by the .env file next to this one (copy .env.example). Only Caddy publishes ports.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+      ADMIN_IPS: ${ADMIN_IPS:-127.0.0.1}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # The certificates: keep them, or every restart asks Let's Encrypt again and the weekly limit is soon reached.
+      - caddy_data:/data
+      - caddy_config:/config
+    mem_limit: 128m
+    logging: *logging
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/nickliggett/initiative-tracker}:${FRONTEND_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      OIDC_ISSUER: https://auth.${DOMAIN}/realms/open5e
+      OIDC_CLIENT_ID: initiative-tracker
+    mem_limit: 64m
+    logging: *logging
+
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/nickliggett/open5e-backend}:${BACKEND_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Any profile but dev signs requests in with bearer tokens.
+      SPRING_PROFILES_ACTIVE: default
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/open5e
+      SPRING_DATASOURCE_USERNAME: open5e
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_JPA_SHOW_SQL: "false"
+      # Tokens say they come from the public address; the keys are fetched over the private network.
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: https://auth.${DOMAIN}/realms/open5e
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/open5e/protocol/openid-connect/certs
+      # Invitation emails.
+      SPRING_MAIL_HOST: ${SMTP_HOST}
+      SPRING_MAIL_PORT: ${SMTP_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SMTP_USERNAME}
+      SPRING_MAIL_PASSWORD: ${SMTP_PASSWORD}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "true"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "true"
+      APP_MAIL_FROM: ${MAIL_FROM}
+      APP_PUBLIC_URL: https://${DOMAIN}/
+      # Leave the rest of the server's memory to the others; stop (and be restarted) rather than limp on when it runs out.
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=65 -XX:+ExitOnOutOfMemoryError
+    mem_limit: 768m
+    logging: *logging
+
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: open5e
+      POSTGRES_USER: open5e
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Used once, when the database is first created, to make Keycloak's own database and user.
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U open5e -d open5e"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    mem_limit: 512m
+    logging: *logging
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    restart: unless-stopped
+    # Production mode (not start-dev): needs a database and its public address. --import-realm only has an effect the
+    # first time, when the realm doesn't exist yet.
+    command: start --import-realm
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_HOSTNAME: https://auth.${DOMAIN}
+      # Caddy ends the HTTPS, so Keycloak speaks plain HTTP to it and believes the X-Forwarded-* headers.
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      JAVA_OPTS_KC_HEAP: -XX:MaxRAMPercentage=65
+    volumes:
+      # Made from keycloak/open5e-realm.template.json by deploy.sh, with this server's address and mail settings in it.
+      - ./keycloak/generated/open5e-realm.json:/opt/keycloak/data/import/open5e-realm.json:ro
+    mem_limit: 1280m
+    logging: *logging
+
+volumes:
+  db_data:
+  caddy_data:
+  caddy_config:

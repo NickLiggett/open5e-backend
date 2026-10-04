@@ -1,0 +1,75 @@
+name: Deploy
+
+# Deploys the stack in deploy/ to the server: copies the files, then runs deploy.sh there, which pulls the images and
+# restarts what changed. Run it from the Actions tab (Run workflow). To roll back, run it again with the tags of an
+# earlier version (sha-<commit>, from the Publish workflows; the server keeps the last deployed ones in .last-deploy).
+#
+# Needs these in the "production" environment (Settings -> Environments):
+#   secrets   DEPLOY_HOST (the server's address), DEPLOY_USER (deploy), DEPLOY_SSH_KEY (the deploy key's private half),
+#             DEPLOY_KNOWN_HOSTS (the server's host key line: ssh-keyscan -t ed25519 <address>)
+# The app's own settings (passwords, mail) live in /opt/dnddms/.env on the server, never in GitHub.
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend_tag:
+        description: Backend image tag (latest, or sha-1234567 to pin a version)
+        default: latest
+      frontend_tag:
+        description: Frontend image tag (latest, or sha-1234567 to pin a version)
+        default: latest
+
+# Two deploys at once would fight over the same containers.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      BACKEND_TAG: ${{ inputs.backend_tag }}
+      FRONTEND_TAG: ${{ inputs.frontend_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tags
+        run: |
+          for tag in "$BACKEND_TAG" "$FRONTEND_TAG"; do
+            if ! [[ "$tag" =~ ^[A-Za-z0-9._-]+$ ]]; then
+              echo "::error::'$tag' is not a valid image tag"
+              exit 1
+            fi
+          done
+
+      - name: Set up SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host server
+            HostName $DEPLOY_HOST
+            User $DEPLOY_USER
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+
+      - name: Copy the deployment files
+        run: tar -C deploy -cf - . | ssh server 'mkdir -p /opt/dnddms && tar -C /opt/dnddms -xf -'
+
+      - name: Deploy
+        run: ssh server "cd /opt/dnddms && chmod +x *.sh && ./deploy.sh '$BACKEND_TAG' '$FRONTEND_TAG'"
