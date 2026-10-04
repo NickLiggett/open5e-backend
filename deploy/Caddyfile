@@ -1,0 +1,32 @@
+# Caddy gets and renews the HTTPS certificates by itself (Let's Encrypt), as long as the DNS records point at this server
+# and ports 80 and 443 are open. DOMAIN, ACME_EMAIL and ADMIN_IPS come from the .env file (see compose.prod.yaml).
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+
+	handle {
+		reverse_proxy frontend:80
+	}
+}
+
+auth.{$DOMAIN} {
+	encode zstd gzip
+
+	# The master realm and its admin console manage the whole server. Only the addresses in ADMIN_IPS (127.0.0.1 means
+	# nobody) can reach them; everyone else gets a 403. Everything else, the realm people sign in to, is open.
+	@admin {
+		path /admin /admin/* /realms/master /realms/master/*
+		not remote_ip {$ADMIN_IPS}
+	}
+	respond @admin "Forbidden" 403
+
+	reverse_proxy keycloak:8080
+}

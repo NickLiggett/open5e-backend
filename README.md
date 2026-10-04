@@ -20,6 +20,7 @@ rules and more), built with Spring Boot and PostgreSQL.
 - [How it works](#how-it-works)
 - [Database and migrations](#database-and-migrations)
 - [Tests](#tests)
+- [Deploying](#deploying)
 - [Project structure](#project-structure)
 - [Future plans](#future-plans)
 - [Troubleshooting](#troubleshooting)
@@ -658,6 +659,14 @@ isn't one to its `NOT_RESOURCES`.
 - **Docker image:** builds the image from the `Dockerfile` without publishing it, to catch a Dockerfile that has stopped
   working.
 
+## Deploying
+
+`deploy/` has everything to run the whole app (this API, the web app, Postgres, Keycloak and Caddy for HTTPS) on one
+server with Docker Compose, deployed by GitHub Actions: `.github/workflows/publish.yml` publishes this repo's image to
+`ghcr.io/nickliggett/open5e-backend` whenever `main` changes, and `deploy.yml` (run by hand from the Actions tab) copies
+the files to the server and starts the new images. The setup, day-to-day use, rollback, backups and troubleshooting are
+in [deploy/README.md](deploy/README.md).
+
 ## Project structure
 
 ```
@@ -692,6 +701,8 @@ src/main/resources
 src/test/resources/import-fixtures/ One recorded row per Open5e endpoint
 docker/postgres/       Postgres image with the dump restore script (and the dump, if you have one; not committed)
 docker/keycloak/       Keycloak realm for local token sign-in
+deploy/                Production stack and server scripts (see Deploying)
+.github/workflows/     CI, publishing the image, and the deploy workflow
 docs/PLAN.md           Design decisions and how the project was built, phase by phase
 compose.yaml           Local app + database stack
 compose.auth.yaml      Adds Keycloak and token sign-in (see Signing in)
