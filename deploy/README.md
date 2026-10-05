@@ -92,7 +92,7 @@ In the **open5e-backend** repository: Settings → Environments → New environm
 | `DEPLOY_HOST` | the Droplet's IPv4 address |
 | `DEPLOY_USER` | `deploy` |
 | `DEPLOY_SSH_KEY` | the contents of `dnddms_deploy` (the private key, all lines) |
-| `DEPLOY_KNOWN_HOSTS` | the output of `ssh-keyscan -t ed25519 <the Droplet's IP>` (run on your computer) |
+| `DEPLOY_KNOWN_HOSTS` | one line, the server's address and its key: `161.35.60.33 ssh-ed25519 AAAA...`. In PowerShell: `(ssh-keyscan -t ed25519 161.35.60.33 2>$null \| Select-String 'ssh-ed25519').Line \| Set-Clipboard`. Its address must be the same as `DEPLOY_HOST` |
 
 Optionally require yourself as a reviewer on the environment, so a deploy waits for your approval.
 
@@ -107,6 +107,10 @@ Optionally require yourself as a reviewer on the environment, so a deploy waits 
    and Caddy gets the certificates.
 4. Load the default content, on the server: `cd /opt/dnddms && ./import-content.sh` (about a minute).
 5. Open `https://dnddms.com`, create an account, and confirm the email address.
+
+If a secret is wrong, the Deploy workflow stops at **Set up SSH** and names it (`.github/scripts/setup-ssh.sh` checks
+each one). Line endings and stray spaces from Windows are cleaned up; what it can't fix is an empty secret, a `.pub`
+file instead of the private key, a key for a different address than `DEPLOY_HOST`, or a key that isn't the server's.
 
 ## Day to day
 
