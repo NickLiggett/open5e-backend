@@ -1,8 +1,8 @@
 # Deploying to a server
 
 The whole app on one server (a DigitalOcean Droplet, 2 vCPU / 4 GB), run with Docker Compose and deployed by GitHub
-Actions. It has been tried end to end on a local machine with a stand-in domain: the stack starts, people sign in
-through Keycloak, and the backend accepts their tokens.
+Actions. It runs at <https://dnddms.com>, and was first tried end to end on a local machine with a stand-in domain: the
+stack starts, people sign in through Keycloak, and the backend accepts their tokens.
 
 ```
                     https://dnddms.com         ┌──────────┐
@@ -27,6 +27,13 @@ Caddy is the only thing facing the internet. It gets and renews the HTTPS certif
 | `import-content.sh` | Loads the default Open5e content |
 | `backup.sh` | Nightly database dump (the setup script schedules it) |
 
+## What you need
+
+- A **DigitalOcean Droplet** (Ubuntu 24.04) and a **domain** whose DNS is managed somewhere you can edit it (here, Cloudflare).
+- An **email-sending service that accepts connections on a port DigitalOcean leaves open** (see [Email](#email)). Without
+  one nobody can verify an account or reset a password.
+- The two repositories on GitHub, with Actions enabled.
+
 ## One-time setup
 
 ### 1. DNS (Cloudflare)
@@ -42,71 +49,140 @@ In the Cloudflare dashboard, DNS → Records, for `dnddms.com`:
 certificates the normal way. (It can be turned back on later, with SSL/TLS mode set to *Full (strict)*; remember that
 the admin-console restriction then sees Cloudflare's addresses, not yours.)
 
-Check: `nslookup dnddms.com` shows the Droplet's IP.
+Check: `nslookup dnddms.com` shows the Droplet's IP. The email service's records are added in [Email](#email).
+
+DigitalOcean's **Cloud Firewall** for the Droplet needs inbound SSH (22), HTTP (80) and HTTPS (443), and the usual outbound
+rules (all TCP and UDP out). Nothing else should be open: the database and Keycloak are never published.
 
 ### 2. The deploy key
 
-On your own computer:
+On your own computer (in PowerShell, with the OpenSSH client that Windows 11 includes):
 
-```sh
-ssh-keygen -t ed25519 -f dnddms_deploy -C "dnddms-deploy" -N ""
+```powershell
+ssh-keygen -t ed25519 -f "$HOME\dnddms_deploy" -C "dnddms-deploy"
 ```
 
-This makes `dnddms_deploy` (private: goes into GitHub, then delete it from your computer) and `dnddms_deploy.pub` (public:
-goes onto the server).
+Press Enter twice for no passphrase: a passphrase would stop GitHub from using the key. This makes `dnddms_deploy` (private:
+goes into GitHub) and `dnddms_deploy.pub` (public: goes onto the server).
 
 ### 3. Prepare the server
 
-Log in to the Droplet as root (DigitalOcean's console, or `ssh root@<ip>`), then:
+Log in to the Droplet as root (DigitalOcean's **Console** button, or `ssh root@<ip>`), then:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/NickLiggett/open5e-backend/main/deploy/server-setup.sh -o server-setup.sh
 bash server-setup.sh --ssh-key "ssh-ed25519 AAAA...the line from dnddms_deploy.pub..."
 ```
 
-(This works once the deployment pull request is merged to `main`; before that, paste the script's contents into a file
-on the server.) It installs Docker, makes the `deploy` user, adds 2 GB of swap, turns on security updates and fail2ban,
-and schedules the nightly backup. Then, from your computer, check that `ssh -i dnddms_deploy deploy@<ip>` works. Only
-after that, run the script again with `--harden-ssh` added to turn off password and root logins.
+It installs Docker, makes the `deploy` user, adds swap if there is none, turns on security updates and fail2ban, and
+schedules the nightly backup. It can be run again safely. Then, from your computer, check that
+`ssh -i "$HOME\dnddms_deploy" deploy@<ip>` works and that `docker ps` works there without `sudo`. Only after that, run the
+script again with `--harden-ssh` added to turn off password and root logins.
+
+From here on, work as the **`deploy`** user (`su - deploy` from root, or the `ssh` command above). Files made as root in
+`/opt/dnddms` can't be read by the deploy workflow.
 
 ### 4. The server's settings
 
-Still on the server, as `deploy`:
+On the server, as `deploy`. This makes `.env` with random passwords and the mail settings; you then add the two things only
+you know. **Run it once, before the first deploy**: Postgres takes its password from `.env` the first time its volume is
+created, so changing `POSTGRES_PASSWORD` or `KEYCLOAK_DB_PASSWORD` later locks the app out of the database.
 
 ```sh
 cd /opt/dnddms
 cp .env.example .env
 chmod 600 .env
-nano .env                # fill it in; make passwords with: openssl rand -base64 24
+for key in POSTGRES_PASSWORD KEYCLOAK_DB_PASSWORD KEYCLOAK_ADMIN_PASSWORD; do
+  sed -i "s|^$key=.*|$key=$(openssl rand -hex 24)|" .env
+done
+read -r -p "Your email, for certificate notices: " v; sed -i "s|^ACME_EMAIL=.*|ACME_EMAIL=$v|" .env
+read -r -s -p "Mail service password or API key: " v; echo; sed -i "s|^SMTP_PASSWORD=.*|SMTP_PASSWORD=$v|" .env; unset v
+nano .env     # check SMTP_HOST, SMTP_PORT, SMTP_USERNAME and MAIL_FROM for your mail service (Email, below)
 ```
 
-Passwords must not contain `' " $ \` or spaces. You need an email service for `SMTP_*` and `MAIL_FROM` (Brevo, Mailgun and
-Resend have free tiers); without it nobody can verify an account or reset a password.
+(`openssl rand -hex` makes letters and digits only, which is what the file needs: passwords must not contain `' " $ \`,
+`|`, `&` or spaces.) Check nothing is missing, which prints no secrets:
+
+```sh
+for k in ACME_EMAIL POSTGRES_PASSWORD KEYCLOAK_DB_PASSWORD KEYCLOAK_ADMIN_PASSWORD SMTP_HOST SMTP_PORT SMTP_USERNAME SMTP_PASSWORD MAIL_FROM DOMAIN; do grep -q "^$k=.\+" .env && echo "ok       $k" || echo "MISSING  $k"; done
+ls -l .env      # -rw------- ... deploy deploy
+```
+
+Keep `KEYCLOAK_ADMIN_PASSWORD` (and `POSTGRES_PASSWORD`) in a password manager; they are also in `.env`.
 
 ### 5. GitHub
 
-In the **open5e-backend** repository: Settings → Environments → New environment → `production`. Add these secrets to it:
+In the **open5e-backend** repository: Settings → Environments → New environment → `production`. Add these **environment** secrets
+(not repository secrets):
 
 | Secret | Value |
 |---|---|
 | `DEPLOY_HOST` | the Droplet's IPv4 address |
 | `DEPLOY_USER` | `deploy` |
-| `DEPLOY_SSH_KEY` | the contents of `dnddms_deploy` (the private key, all lines) |
-| `DEPLOY_KNOWN_HOSTS` | the output of `ssh-keyscan -t ed25519 <the Droplet's IP>` (run on your computer) |
+| `DEPLOY_SSH_KEY` | the contents of `dnddms_deploy`: the **private** key, all lines, from `-----BEGIN OPENSSH PRIVATE KEY-----` to the `END` line. In PowerShell: `Get-Content "$HOME\dnddms_deploy" -Raw \| Set-Clipboard` |
+| `DEPLOY_KNOWN_HOSTS` | one line, **the server's** address and host key: `161.35.60.33 ssh-ed25519 AAAA...`. In PowerShell: `(ssh-keyscan -t ed25519 161.35.60.33 2>$null \| Select-String 'ssh-ed25519').Line \| Set-Clipboard`. Its address must be the same as `DEPLOY_HOST`. This is *not* the `.pub` file of the deploy key |
 
 Optionally require yourself as a reviewer on the environment, so a deploy waits for your approval.
 
 ### 6. Publish the images, then deploy
 
-1. Merge the pull requests (CI, then the deployment ones) in both repositories. Pushing to `main` runs **Publish image** in each, which
+1. Merge the pull requests in both repositories. Pushing to `main` runs **Publish image** in each, which
    puts `ghcr.io/nickliggett/open5e-backend` and `ghcr.io/nickliggett/initiative-tracker` on GitHub's registry.
 2. The first time, GitHub makes each package private. For each (your profile → Packages → the package → Package settings →
    Change visibility) make it **public**: nothing secret is in them, and the server can then pull them without a login.
    (Or put `GHCR_USER` and `GHCR_TOKEN`, a token with `read:packages`, in `.env`.)
-3. Actions tab of open5e-backend → **Deploy** → Run workflow. The first run takes a few minutes: Keycloak sets itself up
-   and Caddy gets the certificates.
-4. Load the default content, on the server: `cd /opt/dnddms && ./import-content.sh` (about a minute).
+3. Actions tab of open5e-backend → **Deploy** → Run workflow, with the default tags. The first run takes several minutes:
+   Keycloak sets itself up and Caddy gets the certificates. It ends with `Up.` and a list of five running containers.
+4. **Load the default content, on the server:** `cd /opt/dnddms && ./import-content.sh` (one to three minutes). Until you do,
+   searches for creatures, items and spells find nothing; the API's counts are zero.
 5. Open `https://dnddms.com`, create an account, and confirm the email address.
+
+If a secret is wrong, the Deploy workflow stops at **Set up SSH** and names it (`.github/scripts/setup-ssh.sh` checks
+each one). Line endings and stray spaces from Windows are cleaned up; what it can't fix is an empty secret, a `.pub`
+file instead of the private key, a key for a different address than `DEPLOY_HOST`, or a key that isn't the server's.
+
+## Email
+
+Verification, password-reset and invitation emails are sent through SMTP by Keycloak and by the backend.
+
+**DigitalOcean blocks outgoing connections on ports 25, 465 and 587** from Droplets (to stop spam), so a mail service
+that only offers those ports, as PurelyMail does, cannot be used for sending from here unless you ask DigitalOcean's support to
+lift the block. Use a service that also accepts mail on a port they leave open. This deployment uses **Resend**:
+
+| Setting | Value |
+|---|---|
+| `SMTP_HOST` | `smtp.resend.com` |
+| `SMTP_PORT` | `2587` (STARTTLS; `2465` is the implicit-TLS one). The app and Keycloak are set up for STARTTLS |
+| `SMTP_USERNAME` | `resend` |
+| `SMTP_PASSWORD` | a Resend API key restricted to sending from your domain |
+| `MAIL_FROM` | `noreply@dnddms.com`, on the domain verified in Resend |
+
+Set up: make a Resend account, add your domain (Domains → Add Domain) and add the DNS records it lists in Cloudflare as
+**DNS only**. They are on the `send` subdomain and at `resend._domainkey`, so they don't touch the records of a mailbox
+host on the same domain. Wait for **Verified**, then make the API key.
+
+To find which ports a server can use, from the Droplet (`portquiz.net` listens on every port):
+
+```sh
+for p in 443 25 465 587 2465 2525 2587 8025; do timeout 6 bash -c "</dev/tcp/portquiz.net/$p" 2>/dev/null && echo "port $p: open" || echo "port $p: blocked"; done
+```
+
+### Changing the mail settings afterwards
+
+There are two copies of the settings. The backend (invitation emails) reads `.env`. **Keycloak keeps its own in its
+database, written the first time it started, and ignores `.env` after that.** To change both, edit `.env`, then:
+
+```sh
+cd /opt/dnddms
+set -a; . ./.env; set +a
+K="docker compose -f compose.prod.yaml exec -T keycloak /opt/keycloak/bin/kcadm.sh"
+$K config credentials --server http://localhost:8080 --realm master --user "$KEYCLOAK_ADMIN_USER" --password "$KEYCLOAK_ADMIN_PASSWORD"
+$K update realms/open5e -s smtpServer.host="$SMTP_HOST" -s smtpServer.port="$SMTP_PORT" -s smtpServer.user="$SMTP_USERNAME" -s "smtpServer.password=$SMTP_PASSWORD" -s smtpServer.auth=true -s smtpServer.starttls=true -s smtpServer.ssl=false -s "smtpServer.from=$MAIL_FROM"
+docker compose -f compose.prod.yaml up -d backend
+```
+
+This works without opening the admin console to the internet. To look at the result: `$K get realms/open5e | grep -A 12 '"smtpServer"'`
+(the password shows as `**********`; `--fields smtpServer` alone prints an empty `{ }`, which is only how `kcadm` filters).
 
 ## Day to day
 
@@ -115,14 +191,30 @@ Optionally require yourself as a reviewer on the environment, so a deploy waits 
   server keeps the last deployed tags in `/opt/dnddms/.last-deploy`. Database changes made by a newer version are not undone.
 - **Logs:** `cd /opt/dnddms && docker compose -f compose.prod.yaml logs -f --tail=100 backend` (or `keycloak`, `caddy`).
 - **State:** `docker compose -f compose.prod.yaml ps`, and `docker stats --no-stream` for memory.
-- **Refresh the Open5e content:** `./import-content.sh` (try `./import-content.sh dry-run` first).
+- **Refresh the Open5e content:** `./import-content.sh` (try `./import-content.sh dry-run` first). It runs a second copy of the
+  backend for a minute; if it fails with a timeout from `api.open5e.com`, run it again.
 
 ## Keycloak's admin console
 
 `https://auth.dnddms.com/admin` is only open to the addresses in `ADMIN_IPS` in `.env`. To use it, put your public IP there
 (search "what is my IP"), then apply it: `docker compose -f compose.prod.yaml up -d`. Log in as `KEYCLOAK_ADMIN_USER`. Set
 `ADMIN_IPS=127.0.0.1` again when done. The realm file is read only the first time Keycloak starts; later changes
-(a new redirect address, mail settings) are made in the console, or by recreating the database.
+(a new redirect address, mail settings) are made in the console, or with `kcadm` as above, or by recreating the database.
+
+### Verifying an account by hand
+
+When mail isn't working yet, or someone never gets their email, you can mark an account's address verified:
+
+```sh
+cd /opt/dnddms
+set -a; . ./.env; set +a
+K="docker compose -f compose.prod.yaml exec -T keycloak /opt/keycloak/bin/kcadm.sh"
+$K config credentials --server http://localhost:8080 --realm master --user "$KEYCLOAK_ADMIN_USER" --password "$KEYCLOAK_ADMIN_PASSWORD"
+$K get users -r open5e --fields id,username,email,emailVerified      # find the id
+$K update users/THE-ID -r open5e -s emailVerified=true
+```
+
+Only do this for people you know: the check exists so that an invitation can't be claimed with an address someone doesn't own.
 
 ## Backups
 
@@ -136,8 +228,18 @@ the same server as the data**, so copy them off it: turn on DigitalOcean's Dropl
   causes are DNS not pointing at the server yet, the Cloudflare orange cloud being on, or ports 80/443 closed in the
   DigitalOcean firewall.
 - **502 for a minute after a deploy:** the backend is still starting. If it stays, read the backend's logs.
+- **Searches find nothing:** the default content hasn't been imported (`./import-content.sh`).
 - **Everyone is signed out or sign-in fails with "invalid issuer":** `DOMAIN` in `.env` changed after Keycloak was first
   started; its stored address is the old one.
-- **Verification emails don't arrive:** check `SMTP_*` and `MAIL_FROM`, the mail service's DNS records, and the spam folder.
-  Keycloak's mail settings were fixed in the realm at its first start; change them in the admin console afterwards.
+- **"Failed to send email, please try again later" when signing up:** Keycloak couldn't send. Read its log:
+  `docker compose -f compose.prod.yaml logs --since 30m keycloak 2>&1 | grep -iE "smtp|mail|authenticat|timed out|refused" | tail`.
+  `Connect timed out` means the port is blocked (see [Email](#email)); an authentication error means the password Keycloak holds is
+  wrong (change it as in "Changing the mail settings afterwards"). The account was still made; once mail works, signing in offers to
+  resend the email.
+- **Verification emails don't arrive but nothing is wrong in the log:** the mail service's dashboard shows whether it was sent and
+  delivered; then the spam folder, then the domain's SPF/DKIM/DMARC records.
+- **The Deploy workflow can't read `.env`, or fails with "permission denied" there:** the file was made as root. As root:
+  `chown deploy:deploy /opt/dnddms/.env && chmod 600 /opt/dnddms/.env`.
+- **The app can't connect to the database after you changed a password in `.env`:** Postgres kept the password it was created with.
+  Put the old value back (or reset it inside Postgres).
 - **Out of memory:** `docker stats`, then `dmesg | grep -i oom`. The limits in `compose.prod.yaml` are a starting point.
