@@ -241,7 +241,8 @@ class CustomContentTest {
         assertThat(new CustomContent(mapper, "  ").privateContent()).isEmpty();
         assertThat(new CustomContent(mapper, folder.toString()).privateContent()).isEmpty();
 
-        assertThatThrownBy(() -> new CustomContent(mapper, folder.resolve("nope").toString()))
-                .hasMessageContaining("isn't a folder");
+        // Not read until asked for, so a bad folder can't stop the app starting
+        CustomContent notAFolder = new CustomContent(mapper, folder.resolve("nope").toString());
+        assertThatThrownBy(notAFolder::privateContent).hasMessageContaining("isn't a folder");
     }
 }

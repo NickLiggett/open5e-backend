@@ -1,5 +1,6 @@
 package com.main.app.importer;
 
+import org.springframework.context.annotation.Lazy;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +16,7 @@ import java.util.List;
  * Only the documents a file defines are ever touched. The owner's other documents, other users' content and all default
  * content are left exactly as they are, and a key that already belongs to any of them is refused.
  */
+@Lazy
 @Service
 public class PrivateContentImporter {
 

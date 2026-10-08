@@ -49,7 +49,7 @@ class FilterTest {
             /api/creatures?type=dragon&size=huge         | select count(*) from open5e.creatures where type->>'key' = 'dragon' and size->>'key' = 'huge'
             /api/classes?subclass=false                  | select count(*) from open5e.classes where subclass_of_key is null
             /api/classes?subclassOf=srd-2024_fighter     | select count(*) from open5e.classes where subclass_of_key = 'srd-2024_fighter'
-            /api/species?isSubspecies=true               | select count(*) from open5e.species where is_subspecies
+            /api/species?isSubspecies=true               | select count(*) from open5e.species where is_subspecies and document_key in (select key from open5e.documents where owner_id is null)
             /api/rules?ruleset=srd-2024_combat           | select count(*) from open5e.rules where ruleset = 'srd-2024_combat'
             /api/skills?ability=dex                      | select count(*) from open5e.skills where ability = 'dex'
             /api/feats?hasPrerequisite=true              | select count(*) from open5e.feats where has_prerequisite
