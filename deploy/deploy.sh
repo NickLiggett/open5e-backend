@@ -27,7 +27,9 @@ echo "Deploying backend:$BACKEND_TAG frontend:$FRONTEND_TAG to $DOMAIN"
 # Keycloak reads its realm from this file the first time it starts. It holds the mail password, so keep it private.
 mkdir -p keycloak/generated
 # Where private content goes (see README); made here so that Docker doesn't make it, as root, when it mounts it.
-mkdir -p private-content && chmod 700 private-content
+# It has to be readable by everyone: the backend runs as its own user in its container, not as this one. (Only you and root
+# are on this server.) Files copied in with scp may have been given tighter permissions.
+mkdir -p private-content && chmod 755 private-content && find private-content -type f -name '*.json' -exec chmod 644 {} +
 umask 077
 envsubst '${DOMAIN} ${SMTP_HOST} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${MAIL_FROM}' \
   < keycloak/open5e-realm.template.json > keycloak/generated/open5e-realm.json

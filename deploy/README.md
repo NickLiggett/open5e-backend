@@ -201,7 +201,7 @@ This works without opening the admin console to the internet. To look at the res
 ## Private content
 
 Books and other material that isn't ours to publish stay out of the repository and off the public site. They are JSON files in
-`/opt/dnddms/private-content` on the server (a folder only `deploy` can read, mounted into the backend), and each is loaded as
+`/opt/dnddms/private-content` on the server (mounted read-only into the backend; the folder must be readable by everyone, mode 755, files 644, because the backend runs as another user in its container), and each is loaded as
 the **own documents of one user** (see "Custom content" in the main README for the format). Nobody else sees it until that
 user shares it on the Sharing page.
 

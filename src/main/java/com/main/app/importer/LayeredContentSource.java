@@ -2,6 +2,7 @@ package com.main.app.importer;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.node.ObjectNode;
@@ -19,6 +20,7 @@ import java.util.Set;
  * <p>
  * A key both have is an error rather than one overriding the other, so Open5e adding a row with a key you used is noticed.
  */
+@Lazy
 @Primary
 @Component
 public class LayeredContentSource implements DefaultContentSource {

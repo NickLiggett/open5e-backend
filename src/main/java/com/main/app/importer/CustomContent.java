@@ -2,6 +2,7 @@ package com.main.app.importer;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
@@ -23,6 +24,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -54,6 +56,7 @@ import java.util.stream.Stream;
  * are removed from the file. See {@link LayeredContentSource}, {@link PrivateContentImporter} and
  * {@code open5e.import.content}.
  */
+@Lazy
 @Component
 public class CustomContent {
 
@@ -72,12 +75,15 @@ public class CustomContent {
     private record Parsed(String name, ObjectNode root) {
     }
 
+    private final JsonMapper mapper;
     private final ContentSet shared;
-    private final List<Private> privateContent;
+    private final Supplier<List<Resource>> privateFiles;
+    /** Read the first time it is asked for, so that a problem with the private folder can't stop the app starting. */
+    private volatile List<Private> privateContent;
 
     @Autowired
     public CustomContent(JsonMapper mapper, @Value("${custom-content.private-dir:}") String privateDir) {
-        this(mapper, find(), findPrivate(privateDir));
+        this(mapper, find(), () -> findPrivate(privateDir), false);
     }
 
     /** From these files, in this order. For tests. */
@@ -85,7 +91,14 @@ public class CustomContent {
         this(mapper, files, List.of());
     }
 
+    /** From these files and these private files. For tests, which want any mistake in them at once. */
     CustomContent(JsonMapper mapper, List<Resource> files, List<Resource> privateFiles) {
+        this(mapper, files, () -> privateFiles, true);
+    }
+
+    private CustomContent(JsonMapper mapper, List<Resource> files, Supplier<List<Resource>> privateFiles, boolean readPrivateNow) {
+        this.mapper = mapper;
+        this.privateFiles = privateFiles;
         List<Parsed> sharedFiles = new ArrayList<>();
         for (Resource file : files) {
             Parsed parsed = read(mapper, file);
@@ -96,9 +109,14 @@ public class CustomContent {
             sharedFiles.add(parsed);
         }
         this.shared = build(mapper, sharedFiles);
+        if (readPrivateNow) {
+            privateContent();
+        }
+    }
 
+    private List<Private> loadPrivate() {
         List<Private> found = new ArrayList<>();
-        for (Resource file : privateFiles) {
+        for (Resource file : privateFiles.get()) {
             Parsed parsed = read(mapper, file);
             String owner = parsed.root().path("owner").isString() ? parsed.root().get("owner").asString() : "";
             if (!USERNAME.matcher(owner).matches()) {
@@ -108,8 +126,9 @@ public class CustomContent {
             parsed.root().remove("owner");
             found.add(new Private(owner, parsed.name(), build(mapper, List.of(parsed))));
         }
-        this.privateContent = List.copyOf(found);
-        checkForClashes();
+        List<Private> loaded = List.copyOf(found);
+        checkForClashes(loaded);
+        return loaded;
     }
 
     private static List<Resource> find() {
@@ -132,8 +151,10 @@ public class CustomContent {
         try (Stream<Path> files = Files.list(path)) {
             return files.filter(file -> file.getFileName().toString().endsWith(".json")).sorted()
                     .<Resource>map(FileSystemResource::new).toList();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        } catch (IOException | RuntimeException e) {
+            throw new IllegalStateException("The private content folder '" + directory + "' can't be read (" + e + "). The app "
+                    + "runs as its own user inside its container, so the folder must be readable by everyone (chmod 755), and "
+                    + "the files too (chmod 644).", e);
         }
     }
 
@@ -201,7 +222,7 @@ public class CustomContent {
     }
 
     /** No document and no row key in two places: the default files and each private file are checked against each other. */
-    private void checkForClashes() {
+    private void checkForClashes(List<Private> privateContent) {
         Map<String, String> documentIn = new HashMap<>();
         Map<String, String> rowIn = new HashMap<>();
         List<Map.Entry<String, ContentSet>> sets = new ArrayList<>();
@@ -287,8 +308,21 @@ public class CustomContent {
         return shared.asSource("custom content");
     }
 
-    /** The private files, each with its owner. Empty unless {@code custom-content.private-dir} is set. */
+    /**
+     * The private files, each with its owner. Empty unless {@code custom-content.private-dir} is set. They are read the
+     * first time this is asked for (by an import), not when the app starts: the web app doesn't use them, so a folder that
+     * can't be read must not stop it running.
+     */
     public List<Private> privateContent() {
-        return privateContent;
+        List<Private> loaded = privateContent;
+        if (loaded == null) {
+            synchronized (this) {
+                if (privateContent == null) {
+                    privateContent = loadPrivate();
+                }
+                loaded = privateContent;
+            }
+        }
+        return loaded;
     }
 }
