@@ -193,6 +193,26 @@ This works without opening the admin console to the internet. To look at the res
 - **State:** `docker compose -f compose.prod.yaml ps`, and `docker stats --no-stream` for memory.
 - **Refresh the Open5e content:** `./import-content.sh` (try `./import-content.sh dry-run` first). It runs a second copy of the
   backend for a minute; if it fails with a timeout from `api.open5e.com`, run it again.
+- **Load new custom content** (after deploying a version with a changed `custom-content/*.json`, or changing a private file):
+  `./import-content.sh apply custom`. It applies only the custom content, doesn't need the Open5e API, and leaves Open5e's rows alone.
+
+## Private content
+
+Books and other material that isn't ours to publish stay out of the repository and off the public site. They are JSON files in
+`/opt/dnddms/private-content` on the server (a folder only `deploy` can read, mounted into the backend), and each is loaded as
+the **own documents of one user** (see "Custom content" in the main README for the format). Nobody else sees it until that
+user shares it on the Sharing page.
+
+```sh
+# from your computer: the file has "owner": "<your username on the site>" at the top
+scp private-content/my-book.json deploy@161.35.60.33:/opt/dnddms/private-content/
+# on the server (you must have signed in to the site once, so the account exists):
+cd /opt/dnddms && ./import-content.sh apply custom
+```
+
+Then, on the site: **Sharing → your document → share with a username or email**, as a viewer. To take it down, delete the file,
+then delete the document on the Sharing page (an import doesn't remove a document whose file is gone). Back up
+`/opt/dnddms/private-content` along with the databases: it is on no one else's machine.
 
 ## Keycloak's admin console
 

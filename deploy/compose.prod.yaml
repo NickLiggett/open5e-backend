@@ -67,8 +67,12 @@ services:
       SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "true"
       APP_MAIL_FROM: ${MAIL_FROM}
       APP_PUBLIC_URL: https://${DOMAIN}/
+      # Private content (books and the like that aren't ours to publish): files on this server, in no repository.
+      CUSTOM_CONTENT_DIR: /private-content
       # Leave the rest of the server's memory to the others; stop (and be restarted) rather than limp on when it runs out.
       JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=65 -XX:+ExitOnOutOfMemoryError
+    volumes:
+      - ./private-content:/private-content:ro
     mem_limit: 768m
     logging: *logging
 

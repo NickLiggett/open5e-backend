@@ -51,6 +51,23 @@ public class DefaultContentImporter {
     private static final double MAX_DELETED_SHARE = 0.5;
     private static final int SMALL_TABLE = 10;
 
+    /**
+     * Which content an import may add to, change and delete: the rows of these documents, and nothing else.
+     *
+     * @param documents the keys of the documents it covers
+     * @param ownerId   the user who owns them, or null for default content (documents with no owner)
+     */
+    public record Scope(Set<String> documents, Long ownerId) {
+
+        public static Scope defaultContent(Set<String> documents) {
+            return new Scope(documents, null);
+        }
+
+        public static Scope ownedBy(long ownerId, Set<String> documents) {
+            return new Scope(documents, ownerId);
+        }
+    }
+
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
 
@@ -83,6 +100,28 @@ public class DefaultContentImporter {
 
     /** Like {@link #run(DefaultContentSource, boolean, boolean)}, for some tables only. */
     public ImportReport run(DefaultContentSource source, List<String> tables, boolean apply, boolean allowLargeDeletions) {
+        return run(source, tables, apply, allowLargeDeletions, (Scope) null);
+    }
+
+    /**
+     * Like {@link #run(DefaultContentSource, List, boolean, boolean)}, but only the default content in these documents
+     * is ever added to, changed or deleted; Open5e's other default content is left exactly as it is. This is how a
+     * source with just some documents' rows (custom content) is applied without being taken for "all of upstream".
+     *
+     * @param onlyDocuments keys of the documents to apply to, or null for all default content
+     */
+    public ImportReport run(DefaultContentSource source, List<String> tables, boolean apply, boolean allowLargeDeletions,
+                            Set<String> onlyDocuments) {
+        return run(source, tables, apply, allowLargeDeletions, onlyDocuments == null ? null : Scope.defaultContent(onlyDocuments));
+    }
+
+    /**
+     * As {@link #run(DefaultContentSource, List, boolean, boolean, Set)}, for the content of {@code scope}: some
+     * default documents, or some documents owned by a user. Nothing outside it is touched, and a row that would replace
+     * one outside it is refused.
+     */
+    public ImportReport run(DefaultContentSource source, List<String> tables, boolean apply, boolean allowLargeDeletions,
+                            Scope scope) {
         Map<String, List<ObjectNode>> content = new LinkedHashMap<>();
         for (String table : tables) {
             List<ObjectNode> rows = source.fetch(table);
@@ -93,7 +132,7 @@ public class DefaultContentImporter {
             if (!apply) {
                 status.setRollbackOnly();
             }
-            return merge(content, allowLargeDeletions);
+            return merge(content, allowLargeDeletions, scope);
         });
         return new ImportReport(source.describe(), apply, reports);
     }
@@ -104,12 +143,32 @@ public class DefaultContentImporter {
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public List<ImportReport.Table> merge(Map<String, List<ObjectNode>> content, boolean allowLargeDeletions) {
+        return merge(content, allowLargeDeletions, (Scope) null);
+    }
+
+    /** As {@link #merge(Map, boolean)}, touching only the default content of {@code onlyDocuments} (null: all of it). */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public List<ImportReport.Table> merge(Map<String, List<ObjectNode>> content, boolean allowLargeDeletions,
+                                          Set<String> onlyDocuments) {
+        return merge(content, allowLargeDeletions, onlyDocuments == null ? null : Scope.defaultContent(onlyDocuments));
+    }
+
+    /** As {@link #merge(Map, boolean)}, touching only the content of {@code scope} (null: all default content). */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public List<ImportReport.Table> merge(Map<String, List<ObjectNode>> content, boolean allowLargeDeletions, Scope scope) {
+        if (scope != null) {
+            for (String key : scope.documents()) {
+                if (!CustomContent.DOCUMENT_KEY.matcher(key).matches()) {
+                    throw new IllegalArgumentException("Not a usable document key: " + key);
+                }
+            }
+        }
         jdbc.execute("set local open5e.allow_default_content_changes = 'on'");
         // The API's timestamps have no time zone (e.g. 2024-01-01T00:00:00); read them as UTC wherever this runs.
         jdbc.execute("set local time zone 'UTC'");
         List<ImportReport.Table> reports = new ArrayList<>();
         for (Map.Entry<String, List<ObjectNode>> entry : content.entrySet()) {
-            reports.add(mergeTable(entry.getKey(), entry.getValue(), allowLargeDeletions));
+            reports.add(mergeTable(entry.getKey(), entry.getValue(), allowLargeDeletions, scope));
         }
         return reports;
     }
@@ -147,21 +206,31 @@ public class DefaultContentImporter {
         return values;
     }
 
-    private ImportReport.Table mergeTable(String table, List<ObjectNode> rows, boolean allowLargeDeletions) {
+    private ImportReport.Table mergeTable(String table, List<ObjectNode> rows, boolean allowLargeDeletions, Scope scope) {
         Map<String, String> columnTypes = columnTypes(table);
         if (columnTypes.isEmpty()) {
             throw new IllegalArgumentException("No table open5e." + table);
         }
         boolean documents = table.equals("documents");
         boolean owned = columnTypes.containsKey("document_key");
-        String defaultRows = documents ? "owner_id is null"
-                : owned ? "document_key in (select key from open5e.documents where owner_id is null)"
+        if (scope != null && !documents && !owned) {
+            throw new IllegalStateException(table + " has no documents, so its content can't be limited to some documents");
+        }
+        // The keys were checked to be plain characters, and the owner is a number, so they can go into the SQL text.
+        String ownerCondition = scope != null && scope.ownerId() != null ? "owner_id = " + scope.ownerId() : "owner_id is null";
+        String inScope = scope == null ? ""
+                : " and key in (" + scope.documents().stream().map(k -> "'" + k + "'").collect(Collectors.joining(", ")) + ")";
+        // The rows this import manages: default content, or the part of it (or of a user's) that the scope names.
+        String defaultRows = documents ? ownerCondition + inScope
+                : owned ? "document_key in (select key from open5e.documents where " + ownerCondition + inScope + ")"
                 : "true";
         String userRows = documents ? "owner_id is not null"
                 : owned ? "document_key in (select key from open5e.documents where owner_id is not null)"
                 : "false";
 
-        Set<String> userKeys = new TreeSet<>(jdbc.queryForList(
+        // Without a scope, a user's rows are never written, even when upstream has the same key. With one, nothing is
+        // quietly skipped: a key that belongs to anything else is refused below.
+        Set<String> userKeys = scope != null ? new TreeSet<>() : new TreeSet<>(jdbc.queryForList(
                 "select key from open5e." + table + " where " + userRows, String.class));
         int currentDefaults = jdbc.queryForObject(
                 "select count(*) from open5e." + table + " where " + defaultRows, Integer.class);
@@ -172,6 +241,9 @@ public class DefaultContentImporter {
         List<Map<String, String>> upserts = new ArrayList<>();
         for (ObjectNode row : rows) {
             Map<String, String> values = toColumns(columnTypes, row, unknownFields);
+            if (documents && scope != null && scope.ownerId() != null) {
+                values.put("owner_id", String.valueOf(scope.ownerId())); // upstream has no owners; these are one user's
+            }
             String key = values.get("key");
             if (key == null || key.isBlank()) {
                 throw new IllegalStateException(table + ": upstream row without a key: " + row);
@@ -183,6 +255,18 @@ public class DefaultContentImporter {
                 skipped.add(key);
             } else {
                 upserts.add(values);
+            }
+        }
+        if (scope != null) {
+            // Rows limited to some documents must not quietly fail to replace rows that belong to other content.
+            Set<String> own = new TreeSet<>(jdbc.queryForList("select key from open5e." + table + " where " + defaultRows,
+                    String.class));
+            List<String> clashes = jdbc.queryForList("select key from open5e." + table + " where key = any(?)", String.class,
+                    (Object) upstreamKeys.toArray(String[]::new)).stream()
+                    .filter(key -> !own.contains(key) && !userKeys.contains(key)).toList();
+            if (!clashes.isEmpty()) {
+                throw new IllegalStateException(table + ": " + clashes + " already belong to content outside "
+                        + scope.documents() + ". Give them other keys");
             }
         }
 

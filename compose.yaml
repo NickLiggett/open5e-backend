@@ -37,8 +37,12 @@ services:
       SPRING_DATASOURCE_USERNAME: nick
       SPRING_DATASOURCE_PASSWORD: open5e
       SPRING_JPA_SHOW_SQL: "false"
+      # Private content, if you have any: ./private-content/*.json (see the README). Never in git.
+      CUSTOM_CONTENT_DIR: /private-content
     ports:
       - "${OPEN5E_APP_PORT:-8080}:8080"
+    volumes:
+      - ./private-content:/private-content:ro
 
 volumes:
   open5e-data:
