@@ -49,6 +49,8 @@ chown deploy:deploy /home/deploy/.ssh/authorized_keys
 chmod 600 /home/deploy/.ssh/authorized_keys
 install -d -m 755 -o deploy -g deploy /opt/dnddms
 install -d -m 750 -o deploy -g deploy /var/backups/dnddms
+# Private content: JSON files for books and the like that aren't ours to publish. Only on this server, never in git.
+install -d -m 700 -o deploy -g deploy /opt/dnddms/private-content
 # The settings template, so that .env can be made before the first deploy copies the rest of the files here.
 if [ ! -f /opt/dnddms/.env.example ]; then
   curl -fsSL https://raw.githubusercontent.com/NickLiggett/open5e-backend/main/deploy/.env.example -o /opt/dnddms/.env.example

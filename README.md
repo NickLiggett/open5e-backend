@@ -562,6 +562,65 @@ services                30         0        7         23        0
 - The source is `open5e.import.source-url` (default `https://api.open5e.com/v2`); the command exits with `0` on
   success and `1` on failure.
 
+### Custom content: default and private
+
+Content Open5e doesn't have lives in JSON files, which can be reviewed and changed like code, rather than in a database
+dump. There are two kinds, which differ in **who can see them**:
+
+| | Default content | Private content |
+|---|---|---|
+| For | your own, or openly licensed, content that can be published | anything that isn't ours to publish, such as a book's rules |
+| Where the files are | `src/main/resources/custom-content/*.json`, **in this repository** | `private-content/*.json` here, `/opt/dnddms/private-content` on the server, **never in git** (it is ignored) |
+| Who sees it | **everyone**, signed in or not, like Open5e's own | **only its owner**, until they share it |
+| Belongs to | no one; users can't change it | the user the file names (`"owner"`), as their own document |
+
+A file is an object with an array per Open5e endpoint, each row in the same shape the importer reads from Open5e (compare
+`src/test/resources/import-fixtures/`). A private file also says whose it is:
+
+```json
+{ "owner": "nick",
+  "documents": [ { "key": "my-book", "name": "My Book", "display_name": "My Book", "type": "SOURCE", "licenses": [],
+                   "publisher": { "key": "me", "name": "Me" }, "gamesystem": { "key": "5e-2014", "name": "5th Edition 2014" } } ],
+  "species":   [ { "key": "my-book_thing", "document": "my-book", "name": "Thing", "is_subspecies": false,
+                   "desc": "...", "traits": [ { "name": "Darkvision", "desc": "...", "type": null, "order": null, "crossreferences": { "to": [] } } ] } ] }
+```
+
+**Rules for both** (they keep content apart from Open5e's, from users' own and from each other, so none can overwrite another):
+- **Every row belongs to a document defined in its own file.** Custom content never adds to Open5e's documents or to a user's.
+  `"document": "my-book"` is enough; it is expanded to the full object.
+- **A key can't be used twice** in a table, anywhere in custom content, and can't be one Open5e (or anyone) already has: the
+  import stops and says which, rather than one silently winning.
+- **The files are the truth.** A changed row is an update; a row removed from a file is deleted by the next import. (A
+  document removed from its file entirely is left behind; delete it in the app.)
+
+**Private content** is applied after everything else, each file as the documents of its owner, so it is *theirs*:
+- Only the owner sees it. It isn't in anyone's search, signed in or not, until the owner shares it on the **Sharing** page
+  (by username, or an email invitation), as a viewer. Then the people they chose see it in search, on the Species page and
+  in the Players page, and can't change it. Unsharing hides it again.
+- **The owner must already have an account**: sign in to the app once, so the user exists, then run the import. A file naming
+  someone who hasn't is refused with a message that says so.
+- The owner can also change it in the app. The next import puts the file's version back.
+- It is never touched by an Open5e refresh, and never touches the owner's other documents, or anyone else's.
+
+**Loading it.** A full import (`--open5e.import.mode=apply`) loads Open5e's content, the default custom content and then the
+private content. `--open5e.import.content=custom` applies just the custom content (both kinds) without fetching Open5e, and
+only ever touches the documents the files define:
+
+```sh
+docker compose run --rm app --spring.profiles.active=import --open5e.import.mode=dry-run --open5e.import.content=custom
+docker compose run --rm app --spring.profiles.active=import --open5e.import.mode=apply   --open5e.import.content=custom
+```
+
+The private folder is read from `custom-content.private-dir` (the environment variable `CUSTOM_CONTENT_DIR`). Both Compose
+files set it to `/private-content` and mount `./private-content` there, so putting files in that folder is all it takes.
+Without it (a plain `./gradlew bootRun`), pass `--custom-content.private-dir=private-content`.
+
+**On the server:** copy the file there and run `./import-content.sh apply custom`; see `deploy/README.md`.
+
+Default content is public: anyone, signed in or not, can read it, and this repository is public too. Only put in it what you
+wrote or have the right to publish. Rules text from a book belongs in **private** content, summarized in your own words; the
+document's `"licenses": []` and description should say it isn't under an open license.
+
 ## How it works
 
 A short tour of the ideas the code is built on. The design decisions and their history are in
@@ -643,6 +702,8 @@ use transactions that are rolled back. To run them against another database, set
 | `ProfileSignInTest` | The same with token sign-in: only the signed-in user can read or change theirs, but anyone can see an avatar |
 | `OwnedResourceMappingTest` | Every entity for a table with a `document_key` is covered by the visibility filter; no collection mappings |
 | `ImportMappingTest` | One recorded row per Open5e endpoint (`src/test/resources/import-fixtures/`) maps onto its table |
+| `CustomContentTest`, `LayeredContentSourceTest`, `CustomContentMergeTest` | Custom content: the files' rules (every row in a document its file defines, no repeated keys, safe document keys, a private file's owner, the private folder), joining Open5e's rows without a clash, and applying it to the real database as default and as private content (only its own rows, nothing else touched, a second application changes nothing, a clash with other content refused, an owner with no account refused) |
+| `PrivateContentVisibilityTest` | Private content through real requests: only its owner sees it (not in search either, signed in or not) until they share it, a viewer can read but not change it, and applying it again keeps who it is shared with |
 | `ImportMergeTest` | Merging upstream rows: inserts, updates, deletes, user content untouched, the deletion guard, dry runs, UTC timestamps |
 | `ApiUrlsTest` | Which links are rewritten, and which are left alone |
 
@@ -685,7 +746,7 @@ src/main/java/com/main/app
 ├── profile/           A user's own settings, avatar picture and tracker state (/api/me/...), and avatars
 │                      for everyone to see (/api/users/{username}/avatar)
 ├── player/            Player characters (/api/players): owner, the user who plays them, and the DM's party (/api/party)
-├── importer/          Loading and refreshing default content from the Open5e API
+├── importer/          Loading and refreshing default content from the Open5e API, plus custom-content/*.json
 ├── creature/          creatures, creature types, creature sets
 ├── spell/             spells, spell schools
 ├── item/              items, magic items, item sets, categories, rarities, weapons, weapon properties, armor,
@@ -716,6 +777,11 @@ Each resource package has the same five classes per resource: the entity (`Spell
 
 Not started yet, roughly in order of usefulness:
 
+- **Importing from a snapshot instead of the live Open5e API.** A command that saves what Open5e returns as JSON files, and
+  a source that reads them, so CI and a new server can load the default content without depending on `api.open5e.com`
+  being up, and with the custom content layered on top as now. (A database dump isn't a good source for this: it is a binary
+  file that can't be reviewed or merged, carries the schema's migration state, and can't be restored onto a database that
+  already has users' content.)
 - **Tests that don't need a local database.** Run the tests against a throwaway Postgres (Testcontainers) loaded
   with the importer's fixtures or a small dump, instead of the Compose database, so they work anywhere.
 - **Continuous integration.** A GitHub Actions workflow that builds and tests every push and pull request.

@@ -38,3 +38,7 @@ out/
 
 ### Local database dump (see README) ###
 docker/postgres/*.dump
+
+### Private content: books and other material that is not ours to publish. Kept on the machines that use it, never in git.
+/private-content/
+/deploy/private-content/
