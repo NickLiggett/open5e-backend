@@ -191,8 +191,10 @@ This works without opening the admin console to the internet. To look at the res
   server keeps the last deployed tags in `/opt/dnddms/.last-deploy`. Database changes made by a newer version are not undone.
 - **Logs:** `cd /opt/dnddms && docker compose -f compose.prod.yaml logs -f --tail=100 backend` (or `keycloak`, `caddy`).
 - **State:** `docker compose -f compose.prod.yaml ps`, and `docker stats --no-stream` for memory.
-- **Refresh the Open5e content:** `./import-content.sh` (try `./import-content.sh dry-run` first). It runs a second copy of the
-  backend for a minute; if it fails with a timeout from `api.open5e.com`, run it again.
+- **Load the Open5e content:** `./import-content.sh` (try `./import-content.sh dry-run` first). It runs a second copy of the
+  backend for a minute and reads the snapshot of Open5e's API that is in the image, so it doesn't call `api.open5e.com`. To
+  get newer content from Open5e, refresh the snapshot in the repository and deploy (see "Refreshing default content" in the
+  backend README); `./import-content.sh apply all api` fetches it live instead.
 - **Load new custom content** (after deploying a version with a changed `custom-content/*.json`, or changing a private file):
   `./import-content.sh apply custom`. It applies only the custom content, doesn't need the Open5e API, and leaves Open5e's rows alone.
 

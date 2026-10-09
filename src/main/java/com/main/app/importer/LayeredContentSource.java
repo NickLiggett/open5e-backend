@@ -1,6 +1,7 @@
 package com.main.app.importer;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.node.ObjectNode;
@@ -11,7 +12,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * The content an import loads: everything Open5e has, plus this repository's own ({@link CustomContent}). The importer
+ * The content an import loads: everything Open5e has (from the snapshot in this repository, or with
+ * {@code open5e.import.source=api} from the live API), plus this repository's own ({@link CustomContent}). The importer
  * can't tell them apart, so custom rows are added, updated and (if removed from their file) deleted along with the rest,
  * and are never deleted just because Open5e doesn't have them.
  * <p>
@@ -25,8 +27,17 @@ public class LayeredContentSource implements DefaultContentSource {
     private final CustomContent custom;
 
     @Autowired
-    public LayeredContentSource(Open5eApiSource open5e, CustomContent custom) {
-        this((DefaultContentSource) open5e, custom);
+    public LayeredContentSource(Open5eApiSource api, SnapshotSource snapshot, CustomContent custom,
+                                @Value("${open5e.import.source:snapshot}") String which) {
+        this(choose(api, snapshot, which), custom);
+    }
+
+    private static DefaultContentSource choose(Open5eApiSource api, SnapshotSource snapshot, String which) {
+        return switch (which) {
+            case "snapshot" -> snapshot;
+            case "api" -> api;
+            default -> throw new IllegalArgumentException("open5e.import.source must be snapshot or api, not '" + which + "'");
+        };
     }
 
     LayeredContentSource(DefaultContentSource open5e, CustomContent custom) {

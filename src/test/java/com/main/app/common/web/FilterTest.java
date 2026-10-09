@@ -44,12 +44,12 @@ class FilterTest {
             /api/magicitems?rarity=legendary             | select count(*) from open5e.magicitems where rarity_key = 'legendary'
             /api/magicitems?category=wand&requiresAttunement=true | select count(*) from open5e.magicitems where category_key = 'wand' and requires_attunement
             /api/items?category=armor                    | select count(*) from open5e.items where category_key = 'armor'
-            /api/creatures?crMin=5&crMax=10              | select count(*) from open5e.creatures where challenge_rating between 5 and 10
-            /api/creatures?cr=0.25                       | select count(*) from open5e.creatures where challenge_rating = 0.25
-            /api/creatures?type=dragon&size=huge         | select count(*) from open5e.creatures where type->>'key' = 'dragon' and size->>'key' = 'huge'
+            /api/creatures?crMin=5&crMax=10              | select count(*) from open5e.creatures where challenge_rating between 5 and 10 and document_key in (select key from open5e.documents where owner_id is null)
+            /api/creatures?cr=0.25                       | select count(*) from open5e.creatures where challenge_rating = 0.25 and document_key in (select key from open5e.documents where owner_id is null)
+            /api/creatures?type=dragon&size=huge         | select count(*) from open5e.creatures where type->>'key' = 'dragon' and size->>'key' = 'huge' and document_key in (select key from open5e.documents where owner_id is null)
             /api/classes?subclass=false                  | select count(*) from open5e.classes where subclass_of_key is null
             /api/classes?subclassOf=srd-2024_fighter     | select count(*) from open5e.classes where subclass_of_key = 'srd-2024_fighter'
-            /api/species?isSubspecies=true               | select count(*) from open5e.species where is_subspecies
+            /api/species?isSubspecies=true               | select count(*) from open5e.species where is_subspecies and document_key in (select key from open5e.documents where owner_id is null)
             /api/rules?ruleset=srd-2024_combat           | select count(*) from open5e.rules where ruleset = 'srd-2024_combat'
             /api/skills?ability=dex                      | select count(*) from open5e.skills where ability = 'dex'
             /api/feats?hasPrerequisite=true              | select count(*) from open5e.feats where has_prerequisite

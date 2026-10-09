@@ -49,8 +49,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       # Starting the app creates the schema (Flyway), then the importer fills it with the default Open5e content, which
-      # many tests read. It takes about a minute and needs api.open5e.com.
-      - name: Load the default content from the Open5e API
+      # many tests read. The content comes from the snapshot of the Open5e API kept in this repository
+      # (src/main/resources/open5e-snapshot), so this needs neither the network nor api.open5e.com to be up.
+      - name: Load the default content from the Open5e snapshot
         run: ./gradlew bootRun --args='--spring.profiles.active=import --open5e.import.mode=apply'
 
       - name: Test

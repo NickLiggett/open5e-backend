@@ -83,4 +83,24 @@ class LayeredContentSourceTest {
 
         assertThat(source.describe()).isEqualTo("Open5e (test) + custom content (2 rows)");
     }
+
+    @Test
+    void readsOpen5eFromTheSnapshotByDefault_andFromTheApiWhenToldTo() {
+        Open5eApiSource api = new Open5eApiSource("http://localhost:1/v2", 100, 0);
+        SnapshotSource snapshot = new SnapshotSource(mapper, SnapshotSource.DEFAULT_LOCATION);
+
+        assertThat(new LayeredContentSource(api, snapshot, custom(ONE_SPECIES), "snapshot").describe())
+                .startsWith("the Open5e snapshot of ");
+        assertThat(new LayeredContentSource(api, snapshot, custom(ONE_SPECIES), "api").describe())
+                .startsWith("http://localhost:1/v2 + custom content");
+    }
+
+    @Test
+    void refusesASourceItDoesntKnow() {
+        Open5eApiSource api = new Open5eApiSource("http://localhost:1/v2", 100, 0);
+        SnapshotSource snapshot = new SnapshotSource(mapper, SnapshotSource.DEFAULT_LOCATION);
+
+        assertThatThrownBy(() -> new LayeredContentSource(api, snapshot, custom(ONE_SPECIES), "dump"))
+                .hasMessageContaining("must be snapshot or api, not 'dump'");
+    }
 }

@@ -7,7 +7,8 @@ rules and more), built with Spring Boot and PostgreSQL.
 - **Users add their own content** (homebrew creatures, spells, items, …) in their own documents, visible only to them
   and to anyone they share a document with.
 - Users can **customize default content** by copying it into their own document; the original never changes.
-- Default content can be **refreshed from the Open5e API** without touching users' content.
+- Default content is **loaded from a snapshot of the Open5e API** kept in this repository (and refreshed from the API on
+  purpose), without touching users' content.
 
 ## Contents
 
@@ -44,7 +45,7 @@ cd open5e-backend
 # 1. Start the database and the app (the first build takes a few minutes)
 docker compose up -d --build
 
-# 2. Load the default content from the Open5e API (about a minute; only needed once)
+# 2. Load the default content from the snapshot of the Open5e API in this repository (a few seconds; only needed once)
 docker compose run --rm app --spring.profiles.active=import --open5e.import.mode=apply
 
 # 3. Try it
@@ -64,7 +65,7 @@ The database starts empty unless you give it a dump. There are two ways to fill 
 
 | | How | When |
 |---|---|---|
-| **From the Open5e API** | Start the stack, then run the importer (step 2 of the quick start) | Any time; no files needed. This gets the latest Open5e data |
+| **From the Open5e snapshot** | Start the stack, then run the importer (step 2 of the quick start) | Any time; no network needed. To get newer Open5e data, refresh the snapshot first (see "The Open5e snapshot") |
 | **From a dump** | Put a `pg_dump` custom-format file at `docker/postgres/open5e_backup.dump` **before the database's first start** | You want to copy this app's database, with users' content, e.g. to another machine |
 
 To make a dump of this app's Compose database:
@@ -519,8 +520,8 @@ They are kept in `party_members`, deleted with either user.
 
 ## Refreshing default content
 
-The importer loads or refreshes the default content from the [Open5e API](https://api.open5e.com/v2/) without
-touching users' content. It runs as a command, not a web server.
+The importer loads or refreshes the default content from a snapshot of the [Open5e API](https://api.open5e.com/v2/)
+(or the live API) without touching users' content. It runs as a command, not a web server.
 
 It takes every table in the schema to be an Open5e endpoint, except those in `NOT_CONTENT` in `DefaultContentImporter`
 (`flyway_schema_history`, `users`, `document_members` and the user data tables). **A new table that isn't Open5e
@@ -559,8 +560,37 @@ services                30         0        7         23        0
   migration.
 - **Timestamps** from the API have no time zone and are read as UTC. **Links** to other Open5e resources become paths
   on this API.
-- The source is `open5e.import.source-url` (default `https://api.open5e.com/v2`); the command exits with `0` on
-  success and `1` on failure.
+- **Where the content comes from:** by default, the snapshot below, so an import doesn't call the Open5e API.
+  `--open5e.import.source=api` reads the live API instead (`open5e.import.source-url`, default
+  `https://api.open5e.com/v2`; it asks for 100 rows at a time with a quarter-second pause between requests, see
+  `open5e.import.page-size` and `open5e.import.request-delay-ms`). The command exits with `0` on success and `1` on failure.
+
+### The Open5e snapshot
+
+`src/main/resources/open5e-snapshot/` is a copy of what the Open5e API returns: a file per endpoint (`spells.jsonl`, one
+row per line, sorted by key, in the API's own shape) and a `manifest.json` saying when and from where it was taken and how
+many rows each file has. It is in the repository, and so in the Docker image, so CI, a new developer and a new server can
+all load the default content without Open5e being up, and without anyone asking it for 9,400 rows every time. Custom
+content is layered on top as before.
+
+It only changes when you refresh it, on purpose, which is what to do when you want Open5e's newer content:
+
+```sh
+# A little at a time, to be kind to their server (each run asks for 100 rows per request, with a pause between):
+./gradlew bootRun --args='--spring.profiles.active=import --open5e.snapshot.refresh-into=src/main/resources/open5e-snapshot --open5e.snapshot.tables=creatures'
+# Or all of it at once:
+./gradlew bootRun --args='--spring.profiles.active=import --open5e.snapshot.refresh-into=src/main/resources/open5e-snapshot'
+```
+
+It prints what changed per table (rows added, changed and removed), writes only the files that changed, and leaves a table
+as it was if the API returned less than half its rows (add `--open5e.import.allow-large-deletions=true` if that's real).
+Review the change with `git diff --stat`, then commit it; the next deploy and CI run use it. A refresh that finds nothing
+new changes no file. Each refresh adds only the changed lines to the repository's history, so refreshing every few months
+is cheap. The snapshot is about 28 MB of text (a few MB in git, as the lines compress well).
+
+`OpenSnapshotTest` checks that the snapshot has a file for every table of the schema, that each file matches its manifest,
+that every row has a unique key and a document that is in it, and that the importer takes it with no field left over, so a
+new table or a damaged file fails the build rather than an import. **A new table (a Flyway migration) needs a refresh.**
 
 ### Custom content: default and private
 
@@ -715,8 +745,8 @@ isn't one to its `NOT_RESOURCES`.
 `.github/workflows/ci.yml` runs on every pull request and every push to `main`:
 
 - **Test:** starts a `postgres:18` service on port 5434 (the port the tests expect), starts the app once with the
-  `import` profile, which creates the schema and loads the default content from the Open5e API (about a minute, and it
-  needs `api.open5e.com`), then runs `./gradlew test`. The test report is kept as an artifact when it fails.
+  `import` profile, which creates the schema and loads the default content from the snapshot of the Open5e API in this
+  repository (a few seconds, and no network), then runs `./gradlew test`. The test report is kept as an artifact when it fails.
 - **Docker image:** builds the image from the `Dockerfile` without publishing it, to catch a Dockerfile that has stopped
   working.
 
@@ -777,11 +807,6 @@ Each resource package has the same five classes per resource: the entity (`Spell
 
 Not started yet, roughly in order of usefulness:
 
-- **Importing from a snapshot instead of the live Open5e API.** A command that saves what Open5e returns as JSON files, and
-  a source that reads them, so CI and a new server can load the default content without depending on `api.open5e.com`
-  being up, and with the custom content layered on top as now. (A database dump isn't a good source for this: it is a binary
-  file that can't be reviewed or merged, carries the schema's migration state, and can't be restored onto a database that
-  already has users' content.)
 - **Tests that don't need a local database.** Run the tests against a throwaway Postgres (Testcontainers) loaded
   with the importer's fixtures or a small dump, instead of the Compose database, so they work anywhere.
 - **Continuous integration.** A GitHub Actions workflow that builds and tests every push and pull request.
