@@ -514,11 +514,20 @@ nothing. Either side can end it at any time; the characters stay with their owne
 | `PUT /api/party/members/{username}` | Asks a user to join (`404` if there is no such user, `400` for yourself or beyond 30 people). Asking again changes nothing |
 | `DELETE /api/party/members/{username}` | Removes them, or withdraws the request |
 | `GET /api/party/players` | The characters of the people who have accepted, whether they own or play them, leaving out your own. Read-only (`role` is `PARTY`) |
+| `GET /api/party/trackers` | The DM trackers you may watch: for each DM whose party you have joined and whose fight one of your characters is in, `{dm, updatedAt, combatants}` in turn order (the first is up). See below |
 | `GET /api/party/invitations` | The parties you have been asked to join or are in: `{dm, status}` |
 | `POST /api/party/invitations/{dm}/accept` | Joins that DM's party |
 | `DELETE /api/party/invitations/{dm}` | Turns the request down, or leaves the party |
 
 They are kept in `party_members`, deleted with either user.
+
+**Watching a DM's tracker.** The tracker the DM saves (`/api/me/tracker`) stays private to them. `GET /api/party/trackers`
+gives a member a new view of it, built from an allowlist of fields: each row's `id`, `name`, `initiative`, `type`,
+`playerId` (a character) and `mine` (the character is yours, owned or played), and its `ac` and `hp`. Those two are
+`null` for anything but a character (a row with a `playerId`, or of type `PC`) until the DM reveals the row, which the
+app does by saving `"revealed": true` on it. Which creature a monster is, notes and everything else the DM kept are
+never sent. A DM whose fight has none of your characters is left out, as is a pending invitation. It is meant to be
+asked every few seconds: it sends an `ETag` and answers `304` while nothing has changed.
 
 ## Refreshing default content
 
@@ -727,6 +736,7 @@ use transactions that are rolled back. To run them against another database, set
 | `DefaultContentProtectionTest` | The database refuses changes to default content and documents unless a transaction opts in |
 | `VisibilityTest`, `AnonymousVisibilityTest` | Who sees what through real requests: owners, members, strangers, anonymous requests |
 | `TokenSignInTest` | Token sign-in: first sign-in, username clashes, signed-in writes, invalid tokens |
+| `PartyTrackerTest` | A party member's view of the DM's tracker: monsters' AC and HP hidden until revealed, only allowed fields sent, characters shown, owned or played, nothing for pending invitations, strangers or after leaving, `304` |
 | `PartyTest` | Parties: pending requests show nothing, accepting, read-only access to party characters (owned or played), leaving, removing, withdrawing, size limit, deleting the DM |
 | `PlayerTest`, `PlayerSignInTest` | Player characters: owner and player permissions, strangers, validation, limits, deleting the user who plays one, and refusing anonymous requests |
 | `InvitationTest` | Email invitations: sending, accepting on a verified sign-in, unverified or expired addresses, roles, direct adds, cancelling, owner-only, limits (the mail server is a mock) |

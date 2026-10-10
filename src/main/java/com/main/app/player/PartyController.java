@@ -1,5 +1,6 @@
 package com.main.app.player;
 
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -8,6 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.WebRequest;
 
 import java.util.List;
 
@@ -21,10 +23,12 @@ public class PartyController {
 
     private final PartyService party;
     private final PlayerService players;
+    private final PartyTrackerService trackers;
 
-    public PartyController(PartyService party, PlayerService players) {
+    public PartyController(PartyService party, PlayerService players, PartyTrackerService trackers) {
         this.party = party;
         this.players = players;
+        this.trackers = trackers;
     }
 
     /** The people in your party, and those you've asked who haven't answered. */
@@ -69,5 +73,20 @@ public class PartyController {
     @GetMapping("/players")
     public List<PlayerDTO> players() {
         return players.party();
+    }
+
+    /**
+     * The initiative trackers of the DMs whose party you are in and whose fight one of your characters is in, as a
+     * player sees them: monsters' armor class and hit points hidden until the DM reveals them. It is meant to be asked
+     * again every few seconds, so it answers 304 while nothing has changed.
+     */
+    @GetMapping("/trackers")
+    public ResponseEntity<List<PartyTrackerDTO>> trackers(WebRequest request) {
+        List<PartyTrackerDTO> shown = trackers.trackers();
+        String eTag = "\"" + Integer.toHexString(shown.hashCode()) + "\"";
+        if (request.checkNotModified(eTag)) {
+            return null; // already answered: 304
+        }
+        return ResponseEntity.ok().eTag(eTag).cacheControl(CacheControl.noCache()).body(shown);
     }
 }

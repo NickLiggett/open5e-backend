@@ -44,6 +44,11 @@ class ProfileSignInTest {
     }
 
     @Test
+    void nobodySignedInCanWatchAPartyTracker() throws Exception {
+        mvc.perform(get("/api/party/trackers")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void nobodySignedInCanReadOrChangeSettingsOrTracker() throws Exception {
         mvc.perform(get("/api/me/settings")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/me/tracker")).andExpect(status().isUnauthorized());
