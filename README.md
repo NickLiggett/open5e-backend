@@ -455,6 +455,8 @@ someone else's, and signing out of one browser and into another finds them as yo
 | `PUT /api/me/settings` | **Replaces** your settings with the body's. Unknown settings and bad values are a `400`. `avatarVersion` is ignored, so a fetched object can be sent back |
 | `GET /api/me/tracker` | The state you left your initiative tracker in: any JSON object you saved, or `{}` |
 | `PUT /api/me/tracker` | Replaces it. The shape is the app's to choose; it must be a JSON object of up to 256 KB (`413` beyond that) |
+| `GET /api/me/encounters` | The encounters you saved on the frontend's Encounters page: any JSON object you saved, or `{}` |
+| `PUT /api/me/encounters` | Replaces them. Like the tracker, the shape is the app's to choose: a JSON object of up to 256 KB (`413` beyond that) |
 | `PUT /api/me/avatar` | Sets your avatar to the body: a PNG, JPEG, WebP or GIF picture of up to 512 KB, sent as is with its `Content-Type`. The bytes must be that kind of picture (`400`), and other types, such as SVG, are a `415`. Answers `{"avatarVersion": ...}` |
 | `DELETE /api/me/avatar` | Removes it (also fine if you have none) |
 | `GET /api/users/{username}/avatar` | Anyone's avatar, as the picture itself, or `404`. **No sign-in needed**, because a browser's `<img>` can't send a token; there is no way to list users from here. Sends an `ETag` and `Cache-Control: no-cache`, so a browser keeps it and asks again each time (`304`) |
@@ -468,7 +470,7 @@ curl -X PUT -H 'X-User: dm' -H 'Content-Type: image/png' --data-binary @me.png h
 curl -o dm.png http://localhost:8080/api/users/dm/avatar
 ```
 
-They are kept in the tables `user_settings`, `user_avatars` and `user_tracker_states`, and deleted with the user.
+They are kept in the tables `user_settings`, `user_avatars`, `user_tracker_states` and `user_encounter_states`, and deleted with the user.
 
 ### Players
 

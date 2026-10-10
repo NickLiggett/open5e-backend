@@ -49,6 +49,8 @@ class ProfileSignInTest {
         mvc.perform(get("/api/me/tracker")).andExpect(status().isUnauthorized());
         mvc.perform(put("/api/me/settings").contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isUnauthorized());
         mvc.perform(put("/api/me/tracker").contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/me/encounters")).andExpect(status().isUnauthorized());
+        mvc.perform(put("/api/me/encounters").contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -73,6 +75,18 @@ class ProfileSignInTest {
         mvc.perform(get("/api/me/settings").with(token("sub-b", TestUsers.PREFIX + "b")))
                 .andExpect(jsonPath("$.mode").doesNotExist());
         mvc.perform(get("/api/me/tracker").with(token("sub-b", TestUsers.PREFIX + "b")))
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    void savedEncountersAreOnlyTheSignedInUsers() throws Exception {
+        mvc.perform(put("/api/me/encounters").with(token("sub-a", TestUsers.PREFIX + "a"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"encounters\": [{\"id\": 1, \"name\": \"Ambush\"}]}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/me/encounters").with(token("sub-a", TestUsers.PREFIX + "a")))
+                .andExpect(jsonPath("$.encounters[0].name").value("Ambush"));
+        mvc.perform(get("/api/me/encounters").with(token("sub-b", TestUsers.PREFIX + "b")))
                 .andExpect(jsonPath("$").isEmpty());
     }
 
