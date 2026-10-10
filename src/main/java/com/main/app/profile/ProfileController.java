@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * The signed-in user's own settings, avatar picture and initiative tracker state. Each is the user's alone: there is
+ * The signed-in user's own settings, avatar picture, initiative tracker state and saved encounters. Each is the user's alone: there is
  * no way to ask for someone else's here (the avatar is served to everyone by {@link UserAvatarController}).
  */
 @RestController
@@ -54,6 +54,18 @@ public class ProfileController {
     @PutMapping("/tracker")
     public ObjectNode saveTracker(@RequestBody ObjectNode body) {
         return profile.saveTracker(userId(), body);
+    }
+
+    /** The encounters the user saved on the Encounters page: any JSON object they saved, or {@code {}}. */
+    @GetMapping("/encounters")
+    public ObjectNode encounters() {
+        return profile.encounters(userId());
+    }
+
+    /** Keeps the saved encounters. They are the app's to shape: any JSON object up to 256 KB. */
+    @PutMapping("/encounters")
+    public ObjectNode saveEncounters(@RequestBody ObjectNode body) {
+        return profile.saveEncounters(userId(), body);
     }
 
     /**

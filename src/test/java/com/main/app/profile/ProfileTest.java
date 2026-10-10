@@ -187,6 +187,55 @@ class ProfileTest {
         json(put("/api/me/tracker"), DM, body).andExpect(status().isBadRequest());
     }
 
+    // ----- saved encounters
+
+    @Test
+    void theSavedEncountersStartEmpty() throws Exception {
+        as(get("/api/me/encounters"), DM).andExpect(status().isOk()).andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    void keepsWhateverTheAppSaves() throws Exception {
+        json(put("/api/me/encounters"), DM, """
+                {"version": 1, "encounters": [
+                  {"id": 1, "name": "Goblin ambush", "ruleset": "5e-2024", "monsters": [{"key": "srd_goblin", "count": 4}], "extras": [3, 3]}]}""")
+                .andExpect(status().isOk());
+
+        as(get("/api/me/encounters"), DM)
+                .andExpect(jsonPath("$.encounters.length()").value(1))
+                .andExpect(jsonPath("$.encounters[0].name").value("Goblin ambush"))
+                .andExpect(jsonPath("$.encounters[0].monsters[0].count").value(4))
+                .andExpect(jsonPath("$.encounters[0].extras[1]").value(3));
+    }
+
+    @Test
+    void replacesTheSavedEncountersAndKeepsEachUsersSeparately_andApartFromTheTracker() throws Exception {
+        json(put("/api/me/tracker"), DM, "{\"round\": 4}").andExpect(status().isOk());
+        json(put("/api/me/encounters"), DM, "{\"encounters\": [{\"id\": 1}, {\"id\": 2}]}").andExpect(status().isOk());
+        json(put("/api/me/encounters"), DM, "{\"encounters\": [{\"id\": 3}]}").andExpect(status().isOk());
+        json(put("/api/me/encounters"), PLAYER, "{\"encounters\": []}").andExpect(status().isOk());
+
+        as(get("/api/me/encounters"), DM).andExpect(jsonPath("$.encounters.length()").value(1)).andExpect(jsonPath("$.encounters[0].id").value(3));
+        as(get("/api/me/encounters"), PLAYER).andExpect(jsonPath("$.encounters.length()").value(0));
+        as(get("/api/me/tracker"), DM).andExpect(jsonPath("$.round").value(4)).andExpect(jsonPath("$.encounters").doesNotExist());
+    }
+
+    @Test
+    void refusesSavedEncountersThatAreTooBig() throws Exception {
+        String big = "{\"notes\": \"" + "x".repeat(ProfileService.MAX_ENCOUNTERS_CHARS) + "\"}";
+
+        json(put("/api/me/encounters"), DM, big)
+                .andExpect(status().isContentTooLarge())
+                .andExpect(jsonPath("$.detail", containsString("too big")));
+        as(get("/api/me/encounters"), DM).andExpect(jsonPath("$").isEmpty());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"[1, 2]", "\"text\"", "42", "not json"})
+    void refusesSavedEncountersThatAreNotAnObject(String body) throws Exception {
+        json(put("/api/me/encounters"), DM, body).andExpect(status().isBadRequest());
+    }
+
     // ----- avatar
 
     @Test
@@ -299,18 +348,19 @@ class ProfileTest {
     // ----- all together
 
     @Test
-    void deletingAUserDeletesTheirSettingsAvatarAndTracker() throws Exception {
+    void deletingAUserDeletesTheirSettingsAvatarTrackerAndEncounters() throws Exception {
         json(put("/api/me/settings"), DM, "{\"mode\": \"dark\"}").andExpect(status().isOk());
         json(put("/api/me/tracker"), DM, "{\"round\": 1}").andExpect(status().isOk());
+        json(put("/api/me/encounters"), DM, "{\"encounters\": []}").andExpect(status().isOk());
         saveAvatar(DM, "image/png", PNG);
         long id = userService.findOrCreate(DM).id();
-        for (String table : new String[]{"user_settings", "user_tracker_states", "user_avatars"}) {
+        for (String table : new String[]{"user_settings", "user_tracker_states", "user_encounter_states", "user_avatars"}) {
             assertThat(jdbc.queryForObject("select count(*) from open5e." + table + " where user_id = ?", Integer.class, id)).isEqualTo(1);
         }
 
         TestUsers.cleanUp(jdbc);
 
-        for (String table : new String[]{"user_settings", "user_tracker_states", "user_avatars"}) {
+        for (String table : new String[]{"user_settings", "user_tracker_states", "user_encounter_states", "user_avatars"}) {
             assertThat(jdbc.queryForObject("select count(*) from open5e." + table + " where user_id = ?", Integer.class, id)).isZero();
         }
     }

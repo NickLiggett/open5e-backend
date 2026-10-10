@@ -23,6 +23,8 @@ public class ProfileService {
 
     /** The most the saved tracker state can be, as JSON text. */
     static final int MAX_TRACKER_CHARS = 256 * 1024;
+    /** The most the saved encounters can be, as JSON text. */
+    static final int MAX_ENCOUNTERS_CHARS = 256 * 1024;
     /** The most an avatar picture can be. The app sends 256 pixels square, which is a few kilobytes. */
     static final int MAX_AVATAR_BYTES = 512 * 1024;
 
@@ -104,6 +106,23 @@ public class ProfileService {
         }
         upsertJson("user_tracker_states", "state", userId, state);
         return tracker(userId);
+    }
+
+    // ----- saved encounters
+
+    /** The encounters the user has saved: whatever JSON object they last saved, or an empty one. */
+    public ObjectNode encounters(long userId) {
+        return stored("select state::text from open5e.user_encounter_states where user_id = ?", userId);
+    }
+
+    /** Keeps the user's saved encounters, which are the app's to shape; they need only be a JSON object of a sane size. */
+    public ObjectNode saveEncounters(long userId, ObjectNode state) {
+        if (jsonMapper.writeValueAsString(state).length() > MAX_ENCOUNTERS_CHARS) {
+            throw new ResponseStatusException(HttpStatusCode.valueOf(413),
+                    "The saved encounters are too big: " + MAX_ENCOUNTERS_CHARS / 1024 + " KB of JSON at most");
+        }
+        upsertJson("user_encounter_states", "state", userId, state);
+        return encounters(userId);
     }
 
     // ----- avatar
