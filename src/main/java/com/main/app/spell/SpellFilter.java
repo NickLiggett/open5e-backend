@@ -11,14 +11,14 @@ import java.util.List;
  *
  * @param document only resources in these documents (comma-separated keys)
  * @param name     case-insensitive part of the name
- * @param classKey a class key, e.g. srd-2024_wizard
+ * @param classKeys class keys (comma-separated), e.g. srd-2024_wizard: spells on the list of any of them
  */
 public record SpellFilter(
         List<String> document,
         String name,
         Integer level,
         String school,
-        @BindParam("class") String classKey,
+        @BindParam("class") List<String> classKeys,
         String damageType,
         Boolean concentration,
         Boolean ritual
@@ -30,7 +30,7 @@ public record SpellFilter(
                 Specs.nameContains(root, cb, name),
                 Specs.equal(root, cb, "level", level),
                 Specs.jsonKey(root, cb, "school", school),
-                Specs.jsonArrayContainsKey(root, cb, "classes", classKey),
+                Specs.jsonArrayContainsAnyKey(root, cb, "classes", classKeys),
                 Specs.jsonArrayContains(root, cb, "damageTypes", damageType),
                 Specs.equal(root, cb, "concentration", concentration),
                 Specs.equal(root, cb, "ritual", ritual));
