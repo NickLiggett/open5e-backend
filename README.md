@@ -277,7 +277,7 @@ comma-separated: `document=srd-2014,srd-2024`) and `name` (case-insensitive part
 | `/api/documents` | `publisher`, `gamesystem` (keys); `name` |
 | `/api/creatures` | `cr` (exact, e.g. `0.25`), `crMin`, `crMax`, `type` (e.g. `dragon`), `size` (e.g. `huge`) |
 | `/api/creaturetypes`, `/api/creaturesets` | |
-| `/api/spells` | `level`, `school` (e.g. `evocation`), `class` (e.g. `srd-2024_wizard`), `damageType` (e.g. `fire`), `concentration`, `ritual` |
+| `/api/spells` | `level`, `school` (e.g. `evocation`), `class` (e.g. `srd-2024_wizard`; several, comma-separated, find the spells of any of them), `damageType` (e.g. `fire`), `concentration`, `ritual` |
 | `/api/spellschools` | |
 | `/api/items` | `category` (e.g. `armor`) |
 | `/api/magicitems` | `category` (e.g. `wand`), `rarity` (e.g. `legendary`), `requiresAttunement` |

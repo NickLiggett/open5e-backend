@@ -75,6 +75,14 @@ public final class Specs {
                 : cb.isTrue(cb.function(JsonbFunctions.ARRAY_CONTAINS, Boolean.class, root.get(attribute), cb.literal(value)));
     }
 
+    /** A JSON array of {@code {key, ...}} objects containing one with any of these keys; no keys don't filter. */
+    public static Predicate jsonArrayContainsAnyKey(Root<?> root, CriteriaBuilder cb, String attribute, List<String> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return null;
+        }
+        return cb.or(keys.stream().map(key -> jsonArrayContainsKey(root, cb, attribute, key)).toArray(Predicate[]::new));
+    }
+
     /** A JSON array of {@code {key, ...}} objects containing one with this key, e.g. a spell's classes. */
     public static Predicate jsonArrayContainsKey(Root<?> root, CriteriaBuilder cb, String attribute, String key) {
         return key == null ? null

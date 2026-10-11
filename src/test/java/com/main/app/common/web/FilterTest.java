@@ -36,6 +36,7 @@ class FilterTest {
             /api/spells?level=3                          | select count(*) from open5e.spells where level = 3
             /api/spells?school=evocation                 | select count(*) from open5e.spells where school->>'key' = 'evocation'
             /api/spells?class=srd-2024_wizard            | select count(*) from open5e.spells where classes @> '[{"key": "srd-2024_wizard"}]'
+            /api/spells?class=srd-2014_wizard,srd-2024_cleric | select count(*) from open5e.spells where classes @> '[{"key": "srd-2014_wizard"}]' or classes @> '[{"key": "srd-2024_cleric"}]'
             /api/spells?damageType=fire                  | select count(*) from open5e.spells where damage_types @> '["fire"]'
             /api/spells?concentration=true&ritual=false  | select count(*) from open5e.spells where concentration and not ritual
             /api/spells?name=FIRE                        | select count(*) from open5e.spells where lower(name) like '%fire%'
