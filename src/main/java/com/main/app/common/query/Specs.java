@@ -45,6 +45,11 @@ public final class Specs {
         return value == null ? null : cb.equal(root.get(attribute), value);
     }
 
+    /** Text equal to the value, whatever the case: "General" finds "GENERAL" too. */
+    public static Predicate equalIgnoreCase(Root<?> root, CriteriaBuilder cb, String attribute, String value) {
+        return value == null || value.isBlank() ? null : cb.equal(cb.lower(root.get(attribute)), value.trim().toLowerCase());
+    }
+
     public static <Y extends Comparable<? super Y>> Predicate atLeast(Root<?> root, CriteriaBuilder cb,
                                                                        String attribute, Y value) {
         return value == null ? null : cb.greaterThanOrEqualTo(root.get(attribute), value);

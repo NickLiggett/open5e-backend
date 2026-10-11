@@ -288,7 +288,7 @@ comma-separated: `document=srd-2014,srd-2024`) and `name` (case-insensitive part
 | `/api/classes` | `subclassOf` (a class key: its subclasses), `subclass` (`false`: base classes only), `casterType` |
 | `/api/species` | `subspeciesOf` (a species key), `isSubspecies` |
 | `/api/backgrounds` | |
-| `/api/feats` | `hasPrerequisite`, `type` |
+| `/api/feats` | `hasPrerequisite`, `type` (any case: sources write both `General` and `GENERAL`) |
 | `/api/rulesets` | |
 | `/api/rules` | `ruleset` (a ruleset key) |
 | `/api/abilities`, `/api/sizes`, `/api/damagetypes`, `/api/conditions`, `/api/images` | |

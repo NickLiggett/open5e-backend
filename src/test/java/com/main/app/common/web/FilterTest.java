@@ -54,6 +54,8 @@ class FilterTest {
             /api/rules?ruleset=srd-2024_combat           | select count(*) from open5e.rules where ruleset = 'srd-2024_combat'
             /api/skills?ability=dex                      | select count(*) from open5e.skills where ability = 'dex'
             /api/feats?hasPrerequisite=true              | select count(*) from open5e.feats where has_prerequisite
+            /api/feats?type=general                      | select count(*) from open5e.feats where lower(type) = 'general'
+            /api/feats?type=GENERAL                      | select count(*) from open5e.feats where lower(type) = 'general'
             /api/weapons?isSimple=true                   | select count(*) from open5e.weapons where is_simple
             /api/documents?publisher=kobold-press        | select count(*) from open5e.documents where publisher->>'key' = 'kobold-press' and owner_id is null
             /api/documents?gamesystem=5e-2024            | select count(*) from open5e.documents where gamesystem->>'key' = '5e-2024' and owner_id is null

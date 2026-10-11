@@ -10,6 +10,7 @@ import java.util.List;
  *
  * @param document only resources in these documents (comma-separated keys)
  * @param name     case-insensitive part of the name
+ * @param type     the feat type, in any case: sources write "General" and "GENERAL" for the same thing
  */
 public record FeatFilter(
         List<String> document,
@@ -23,6 +24,6 @@ public record FeatFilter(
                 Specs.inDocuments(root, cb, document),
                 Specs.nameContains(root, cb, name),
                 Specs.equal(root, cb, "hasPrerequisite", hasPrerequisite),
-                Specs.equal(root, cb, "type", type));
+                Specs.equalIgnoreCase(root, cb, "type", type));
     }
 }
