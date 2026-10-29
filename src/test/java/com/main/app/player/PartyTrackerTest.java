@@ -114,6 +114,30 @@ class PartyTrackerTest {
     }
 
     @Test
+    void aMonstersNameArmorClassAndHitPointsAreHiddenOrShownEachOnItsOwn() throws Exception {
+        join(ANNA);
+        dmSaves("""
+                {"combatants": [
+                  {"id": 1, "name": "Anna's Wizard", "initiative": 18, "ac": 12, "hp": 30, "type": "PC", "playerId": %d, "nameHidden": true},
+                  {"id": 2, "name": "Goblin", "initiative": 15, "ac": 15, "hp": 7, "type": "Creature", "acRevealed": true, "nameHidden": true},
+                  {"id": 3, "name": "Ogre", "initiative": 9, "ac": 11, "hp": 59, "type": "Creature", "hpRevealed": true, "revealed": false},
+                  {"id": 4, "name": "Orc", "initiative": 5, "ac": 13, "hp": 15, "type": "Creature", "revealed": true, "hpRevealed": false}
+                ]}""".formatted(annasCharacter));
+
+        mvc.perform(get("/api/party/trackers").header(DevCurrentUser.HEADER, ANNA))
+                .andExpect(jsonPath("$[0].combatants[0].name").value("Anna's Wizard")) // a character's is always shown
+                .andExpect(jsonPath("$[0].combatants[1].name").doesNotExist())
+                .andExpect(jsonPath("$[0].combatants[1].ac").value(15))
+                .andExpect(jsonPath("$[0].combatants[1].hp").doesNotExist())
+                .andExpect(jsonPath("$[0].combatants[1].revealed").value(false))
+                .andExpect(jsonPath("$[0].combatants[2].name").value("Ogre"))
+                .andExpect(jsonPath("$[0].combatants[2].ac").doesNotExist())
+                .andExpect(jsonPath("$[0].combatants[2].hp").value(59))
+                .andExpect(jsonPath("$[0].combatants[3].ac").value(13)) // the older all-or-nothing flag fills in what isn't said
+                .andExpect(jsonPath("$[0].combatants[3].hp").doesNotExist());
+    }
+
+    @Test
     void nothingTheDmKeptBeyondWhatAPlayerMaySeeIsGivenOut() throws Exception {
         join(ANNA);
         dmSaves(fight(true));

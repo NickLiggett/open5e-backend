@@ -18,11 +18,11 @@ import java.util.List;
 public record PartyTrackerDTO(String dm, Long trackerId, String name, boolean live, Instant updatedAt, List<Combatant> combatants) {
 
     /**
-     * One in the turn order. {@code ac} and {@code hp} are null when they are hidden (or unknown).
+     * One in the turn order. {@code name}, {@code ac} and {@code hp} are null when they are hidden (or unknown).
      *
      * @param playerId the character, if this row is one (the same id as in {@code /api/players})
      * @param mine whether the character is the viewer's: they own it or play it
-     * @param revealed whether the DM has shown this row's armor class and hit points
+     * @param revealed whether the DM has shown all of what can be hidden of this row: its armor class and hit points (false for characters)
      */
     public record Combatant(Long id, String name, Integer initiative, String type, Long playerId, boolean mine,
                             Integer ac, Integer hp, boolean revealed) {

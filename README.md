@@ -532,9 +532,10 @@ They are kept in `party_members`, deleted with either user.
 
 **Watching a DM's tracker.** The tracker the DM saves (`/api/me/tracker`) stays private to them. `GET /api/party/trackers`
 gives a member a new view of it, built from an allowlist of fields: each row's `id`, `name`, `initiative`, `type`,
-`playerId` (a character) and `mine` (the character is yours, owned or played), and its `ac` and `hp`. Those two are
-`null` for anything but a character (a row with a `playerId`, or of type `PC`) until the DM reveals the row, which the
-app does by saving `"revealed": true` on it. Which creature a monster is, notes and everything else the DM kept are
+`playerId` (a character) and `mine` (the character is yours, owned or played), and its `ac` and `hp`. For anything
+but a character (a row with a `playerId`, or of type `PC`) the DM decides, field by field, what shows: `ac` and `hp` are
+`null` until the DM reveals them (`"acRevealed": true`, `"hpRevealed": true`; where these are absent the older
+all-or-nothing `"revealed": true` stands for both), and `name` is `null` once the DM hides it (`"nameHidden": true`). Which creature a monster is, notes and everything else the DM kept are
 never sent. A tracker with none of your characters in it is left out, as is a pending invitation. A DM's trackers come together: the one in use first, then those they put aside, most recently saved first; `name` is what the DM called each (`""` if nothing). The same hiding rules apply to those put aside. It is meant to be
 asked every few seconds: it sends an `ETag` and answers `304` while nothing has changed.
 

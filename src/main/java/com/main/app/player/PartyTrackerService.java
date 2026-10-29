@@ -21,7 +21,7 @@ import java.util.Set;
  *
  * <p>A tracker is the DM's own and can hold what the table must not see (a monster's hit points, which monster it is),
  * so it is never given as it is kept: this builds a new view from the fields a player may see, and nothing else. A
- * monster's armor class and hit points show only once the DM has revealed that row; characters' always show.
+ * monster's name, armor class and hit points show only while the DM lets them (each can be hidden on its own: {@code nameHidden}, and {@code acRevealed} and {@code hpRevealed}, which follow the older all-or-nothing {@code revealed} when absent); characters' always show.
  */
 @Service
 @Transactional(readOnly = true)
@@ -96,20 +96,28 @@ public class PartyTrackerService {
         for (JsonNode row : rows) {
             Long playerId = whole(row.path("playerId"));
             String type = row.path("type").isString() ? row.path("type").asString() : "";
-            boolean revealed = row.path("revealed").isBoolean() && row.path("revealed").asBoolean();
-            boolean known = playerId != null || "PC".equals(type) || revealed; // characters are the table's own
+            boolean character = playerId != null || "PC".equals(type); // characters are the table's own
+            boolean revealed = flag(row, "revealed", false); // both armor class and hit points, as rows were once all-or-nothing
+            boolean acShown = character || flag(row, "acRevealed", revealed);
+            boolean hpShown = character || flag(row, "hpRevealed", revealed);
+            boolean nameShown = character || !flag(row, "nameHidden", false);
             combatants.add(new PartyTrackerDTO.Combatant(
                     whole(row.path("id")),
-                    row.path("name").isString() ? row.path("name").asString() : "",
+                    nameShown ? (row.path("name").isString() ? row.path("name").asString() : "") : null,
                     small(row.path("initiative")),
                     type,
                     playerId,
                     playerId != null && mine.contains(playerId),
-                    known ? small(row.path("ac")) : null,
-                    known ? small(row.path("hp")) : null,
-                    revealed));
+                    acShown ? small(row.path("ac")) : null,
+                    hpShown ? small(row.path("hp")) : null,
+                    acShown && hpShown && !character));
         }
         return combatants;
+    }
+
+    /** A true-or-false field of a row, or {@code otherwise} when it isn't there. */
+    private static boolean flag(JsonNode row, String field, boolean otherwise) {
+        return row.path(field).isBoolean() ? row.path(field).asBoolean() : otherwise;
     }
 
     private static Long whole(JsonNode node) {
