@@ -142,6 +142,27 @@ class ProfileTest {
     }
 
     @Test
+    void keepsTheFontTextSizeAndFavoritePages() throws Exception {
+        json(put("/api/me/settings"), DM, "{\"font\": \"serif\", \"textSize\": \"large\", \"favoritePages\": [\"Spells\", \"Creatures\"]}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.font").value("serif"))
+                .andExpect(jsonPath("$.textSize").value("large"))
+                .andExpect(jsonPath("$.favoritePages[1]").value("Creatures"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"font\": \"comic\"}",
+            "{\"font\": 3}",
+            "{\"textSize\": \"huge\"}",
+            "{\"favoritePages\": [\"Spells\", \"Spells\"]}",
+            "{\"favoritePages\": \"Spells\"}",
+    })
+    void refusesAFontTextSizeOrFavoritesThatAreNotAllowed(String body) throws Exception {
+        json(put("/api/me/settings"), DM, body).andExpect(status().isBadRequest());
+    }
+
+    @Test
     void keepsTheFiltersSavedForEachPageAndNothingElseInThem() throws Exception {
         json(put("/api/me/settings"), DM, "{\"savedFilters\": {\"spells\": [{\"name\": \" Fire \", \"extra\": 1, \"filters\": {\"damageType\": \"fire\", \"sources\": [\"kp\"]}}], \"creatures\": []}}")
                 .andExpect(status().isOk())

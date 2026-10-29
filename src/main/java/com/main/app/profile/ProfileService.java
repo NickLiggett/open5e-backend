@@ -46,9 +46,13 @@ public class ProfileService {
     static final String AVATAR_VERSION = "avatarVersion";
     private static final Set<String> MODES = Set.of("light", "dark", "system");
     private static final Set<String> HP_MODES = Set.of("down", "up");
+    /** The settings that are one of a few allowed words, and the words. */
+    private static final Map<String, Set<String>> CHOICES = Map.of(
+            "font", Set.of("default", "sans", "serif", "readable", "mono"),
+            "textSize", Set.of("small", "normal", "large", "larger"));
     private static final Set<String> COLORS = Set.of("primary", "secondary");
     /** The settings that are a short list of short words or names: the tracker's columns, and what its Notes columns are called. */
-    private static final Map<String, int[]> WORD_LISTS = Map.of("trackerColumns", new int[]{30, 40}, "noteNames", new int[]{3, 30});
+    private static final Map<String, int[]> WORD_LISTS = Map.of("trackerColumns", new int[]{30, 40}, "noteNames", new int[]{3, 30}, "favoritePages", new int[]{20, 40});
     private static final Pattern HEX_COLOR = Pattern.compile("#[0-9a-fA-F]{6}");
 
     /** The picture types we keep. SVG is left out on purpose: it can carry scripts. */
@@ -73,7 +77,7 @@ public class ProfileService {
     // ----- settings
 
     /**
-     * The user's settings (mode, main color, second color, hpMode: whether hit points count down or up, trackerColumns: which columns the tracker shows, noteNames: what its Notes columns are called, savedFilters: the filters saved by name for each page), as far as they have chosen any, with {@code avatarVersion}:
+     * The user's settings (mode, main color, second color, hpMode: whether hit points count down or up, trackerColumns: which columns the tracker shows, noteNames: what its Notes columns are called, savedFilters: the filters saved by name for each page, font and textSize: the look of the text, favoritePages: the pages pinned in the drawer), as far as they have chosen any, with {@code avatarVersion}:
      * the version of their avatar picture, or null if they have none. It is worked out here and ignored if sent back.
      */
     public ObjectNode settings(long userId) {
@@ -103,6 +107,11 @@ public class ProfileService {
             } else if (name.equals("hpMode")) {
                 if (value == null || !HP_MODES.contains(value)) {
                     throw badRequest("hpMode must be down or up");
+                }
+                clean.put(name, value);
+            } else if (CHOICES.containsKey(name)) {
+                if (value == null || !CHOICES.get(name).contains(value)) {
+                    throw badRequest(name + " must be one of " + new java.util.TreeSet<>(CHOICES.get(name)));
                 }
                 clean.put(name, value);
             } else if (name.equals("savedFilters")) {
@@ -167,8 +176,8 @@ public class ProfileService {
             if (!item.isString() || item.asString().length() > limits[1]) {
                 throw badRequest(name + " must be texts of at most " + limits[1] + " characters");
             }
-            if (name.equals("trackerColumns") && !seen.add(item.asString())) {
-                throw badRequest("trackerColumns lists " + item.asString() + " twice");
+            if (!name.equals("noteNames") && !seen.add(item.asString())) {
+                throw badRequest(name + " lists " + item.asString() + " twice");
             }
             list.add(item.asString());
         }
