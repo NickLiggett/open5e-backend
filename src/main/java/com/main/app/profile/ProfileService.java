@@ -39,6 +39,7 @@ public class ProfileService {
 
     static final String AVATAR_VERSION = "avatarVersion";
     private static final Set<String> MODES = Set.of("light", "dark", "system");
+    private static final Set<String> HP_MODES = Set.of("down", "up");
     private static final Set<String> COLORS = Set.of("primary", "secondary");
     private static final Pattern HEX_COLOR = Pattern.compile("#[0-9a-fA-F]{6}");
 
@@ -64,7 +65,7 @@ public class ProfileService {
     // ----- settings
 
     /**
-     * The user's settings (mode, main color, second color), as far as they have chosen any, with {@code avatarVersion}:
+     * The user's settings (mode, main color, second color, hpMode: whether hit points count down or up), as far as they have chosen any, with {@code avatarVersion}:
      * the version of their avatar picture, or null if they have none. It is worked out here and ignored if sent back.
      */
     public ObjectNode settings(long userId) {
@@ -89,6 +90,11 @@ public class ProfileService {
             if (name.equals("mode")) {
                 if (value == null || !MODES.contains(value)) {
                     throw badRequest("mode must be light, dark or system");
+                }
+                clean.put(name, value);
+            } else if (name.equals("hpMode")) {
+                if (value == null || !HP_MODES.contains(value)) {
+                    throw badRequest("hpMode must be down or up");
                 }
                 clean.put(name, value);
             } else if (COLORS.contains(name)) {

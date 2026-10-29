@@ -451,7 +451,7 @@ someone else's, and signing out of one browser and into another finds them as yo
 
 | Request | Does |
 |---|---|
-| `GET /api/me/settings` | Your settings, as far as you have chosen any: `mode` (`light`, `dark` or `system`), `primary` and `secondary` (`#rrggbb`). Also `avatarVersion` (see below), or `null` without an avatar |
+| `GET /api/me/settings` | Your settings, as far as you have chosen any: `mode` (`light`, `dark` or `system`), `primary` and `secondary` (`#rrggbb`), and `hpMode` (`down` or `up`: whether the tracker counts hit points down from the maximum or damage up from 0). Also `avatarVersion` (see below), or `null` without an avatar |
 | `PUT /api/me/settings` | **Replaces** your settings with the body's. Unknown settings and bad values are a `400`. `avatarVersion` is ignored, so a fetched object can be sent back |
 | `GET /api/me/tracker` | The state you left your initiative tracker in: any JSON object you saved, or `{}` |
 | `PUT /api/me/tracker` | Replaces it. The shape is the app's to choose; it must be a JSON object of up to 256 KB (`413` beyond that). This is the tracker **in use**; it may carry a `name` |

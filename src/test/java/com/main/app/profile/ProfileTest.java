@@ -114,8 +114,28 @@ class ProfileTest {
                 .andExpect(jsonPath("$.primary").value("#112233"));
     }
 
+    @Test
+    void keepsHowHitPointsCount() throws Exception {
+        json(put("/api/me/settings"), DM, "{\"hpMode\": \"up\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hpMode").value("up"));
+
+        as(get("/api/me/settings"), DM).andExpect(jsonPath("$.hpMode").value("up"));
+    }
+
+    @Test
+    void leavesHowHitPointsCountUnsetWhenNull() throws Exception {
+        json(put("/api/me/settings"), DM, "{\"hpMode\": null, \"mode\": \"dark\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hpMode").doesNotExist())
+                .andExpect(jsonPath("$.mode").value("dark"));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {
+            "{\"hpMode\": \"sideways\"}",
+            "{\"hpMode\": \"UP\"}",
+            "{\"hpMode\": 1}",
             "{\"mode\": \"neon\"}",
             "{\"mode\": 3}",
             "{\"primary\": \"blue\"}",
