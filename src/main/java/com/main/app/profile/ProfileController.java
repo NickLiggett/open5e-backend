@@ -6,6 +6,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -54,6 +57,30 @@ public class ProfileController {
     @PutMapping("/tracker")
     public ObjectNode saveTracker(@RequestBody ObjectNode body) {
         return profile.saveTracker(userId(), body);
+    }
+
+    /** The trackers put aside, most recent first: {@code [{id, name, updatedAt, combatants}]}. */
+    @GetMapping("/trackers")
+    public List<ProfileService.SavedTracker> savedTrackers() {
+        return profile.savedTrackers(userId());
+    }
+
+    /** Starts a new tracker named {@code name}, putting the one in use aside. Resolves to the tracker now in use. */
+    @PostMapping("/trackers")
+    public ObjectNode newTracker(@RequestBody ObjectNode body) {
+        return profile.newTracker(userId(), body.path("name").isString() ? body.path("name").asString() : null);
+    }
+
+    /** Makes a tracker put aside the one in use, putting the one in use aside. Resolves to the tracker now in use. */
+    @PostMapping("/trackers/{id}/open")
+    public ObjectNode openTracker(@PathVariable long id) {
+        return profile.openTracker(userId(), id);
+    }
+
+    @DeleteMapping("/trackers/{id}")
+    public ResponseEntity<Void> deleteSavedTracker(@PathVariable long id) {
+        profile.deleteSavedTracker(userId(), id);
+        return ResponseEntity.noContent().build();
     }
 
     /** The encounters the user saved on the Encounters page: any JSON object they saved, or {@code {}}. */

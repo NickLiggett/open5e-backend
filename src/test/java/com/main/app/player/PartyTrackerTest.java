@@ -200,6 +200,56 @@ class PartyTrackerTest {
     }
 
     @Test
+    void aTrackerTheDmPutAsideShowsAsNotLive_withMonstersStatsStillHidden() throws Exception {
+        join(ANNA);
+        dmSaves(fight(false));
+        mvc.perform(post("/api/me/trackers").header(DevCurrentUser.HEADER, DM)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"name\": \"Friday group\"}")).andExpect(status().isOk());
+        // the one in use no longer has Anna in it
+
+        mvc.perform(get("/api/party/trackers").header(DevCurrentUser.HEADER, ANNA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].dm").value(DM))
+                .andExpect(jsonPath("$[0].live").value(false))
+                .andExpect(jsonPath("$[0].trackerId").isNumber())
+                .andExpect(jsonPath("$[0].combatants.length()").value(3))
+                .andExpect(jsonPath("$[0].combatants[0].ac").value(12))
+                .andExpect(jsonPath("$[0].combatants[1].ac").doesNotExist())
+                .andExpect(jsonPath("$[0].combatants[1].hp").doesNotExist());
+    }
+
+    @Test
+    void theLiveTrackerComesFirst_thenThosePutAside_andEachNamesItself() throws Exception {
+        join(ANNA);
+        dmSaves(fight(false).replace("{\"version\": 1,", "{\"version\": 1, \"name\": \"Tuesday group\","));
+        mvc.perform(post("/api/me/trackers").header(DevCurrentUser.HEADER, DM)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"name\": \"Friday group\"}")).andExpect(status().isOk());
+        dmSaves(fight(true).replace("{\"version\": 1,", "{\"version\": 1, \"name\": \"Friday group\","));
+
+        mvc.perform(get("/api/party/trackers").header(DevCurrentUser.HEADER, ANNA))
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].live").value(true))
+                .andExpect(jsonPath("$[0].trackerId").doesNotExist())
+                .andExpect(jsonPath("$[0].name").value("Friday group"))
+                .andExpect(jsonPath("$[0].combatants[1].hp").value(7))
+                .andExpect(jsonPath("$[1].live").value(false))
+                .andExpect(jsonPath("$[1].name").value("Tuesday group"))
+                .andExpect(jsonPath("$[1].combatants[1].hp").doesNotExist());
+    }
+
+    @Test
+    void aTrackerPutAsideThatTheViewersCharacterIsNotInIsNotShown() throws Exception {
+        join(ANNA);
+        join(BEN);
+        dmSaves(fight(false));
+        mvc.perform(post("/api/me/trackers").header(DevCurrentUser.HEADER, DM)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"name\": \"Friday group\"}")).andExpect(status().isOk());
+
+        mvc.perform(get("/api/party/trackers").header(DevCurrentUser.HEADER, BEN)).andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
     void theDmsOwnTrackerIsStillTheirOwn() throws Exception {
         join(ANNA);
         dmSaves(fight(false));

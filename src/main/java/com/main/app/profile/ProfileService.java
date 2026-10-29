@@ -5,10 +5,14 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -23,6 +27,11 @@ public class ProfileService {
 
     /** The most the saved tracker state can be, as JSON text. */
     static final int MAX_TRACKER_CHARS = 256 * 1024;
+    /** The most trackers a user can have put aside. */
+    static final int MAX_SAVED_TRACKERS = 50;
+    /** The longest a tracker's name can be when it is given. */
+    static final int MAX_TRACKER_NAME = 60;
+    static final String UNTITLED_TRACKER = "Untitled tracker";
     /** The most the saved encounters can be, as JSON text. */
     static final int MAX_ENCOUNTERS_CHARS = 256 * 1024;
     /** The most an avatar picture can be. The app sends 256 pixels square, which is a few kilobytes. */
@@ -30,11 +39,16 @@ public class ProfileService {
 
     static final String AVATAR_VERSION = "avatarVersion";
     private static final Set<String> MODES = Set.of("light", "dark", "system");
+    private static final Set<String> HP_MODES = Set.of("down", "up");
     private static final Set<String> COLORS = Set.of("primary", "secondary");
     private static final Pattern HEX_COLOR = Pattern.compile("#[0-9a-fA-F]{6}");
 
     /** The picture types we keep. SVG is left out on purpose: it can carry scripts. */
     static final Set<String> IMAGE_TYPES = Set.of("image/png", "image/jpeg", "image/webp", "image/gif");
+
+    /** A tracker put aside: {@code combatants} is how many are in its turn order. */
+    public record SavedTracker(long id, String name, Instant updatedAt, int combatants) {
+    }
 
     /** A stored picture, and its version: when it was saved, in milliseconds since 1970. */
     public record Avatar(String contentType, byte[] image, long version) {
@@ -51,7 +65,7 @@ public class ProfileService {
     // ----- settings
 
     /**
-     * The user's settings (mode, main color, second color), as far as they have chosen any, with {@code avatarVersion}:
+     * The user's settings (mode, main color, second color, hpMode: whether hit points count down or up), as far as they have chosen any, with {@code avatarVersion}:
      * the version of their avatar picture, or null if they have none. It is worked out here and ignored if sent back.
      */
     public ObjectNode settings(long userId) {
@@ -76,6 +90,11 @@ public class ProfileService {
             if (name.equals("mode")) {
                 if (value == null || !MODES.contains(value)) {
                     throw badRequest("mode must be light, dark or system");
+                }
+                clean.put(name, value);
+            } else if (name.equals("hpMode")) {
+                if (value == null || !HP_MODES.contains(value)) {
+                    throw badRequest("hpMode must be down or up");
                 }
                 clean.put(name, value);
             } else if (COLORS.contains(name)) {
@@ -106,6 +125,80 @@ public class ProfileService {
         }
         upsertJson("user_tracker_states", "state", userId, state);
         return tracker(userId);
+    }
+
+    // ----- trackers put aside
+
+    /** The trackers the user has put aside, most recently put aside first. */
+    public List<SavedTracker> savedTrackers(long userId) {
+        return jdbc.query("""
+                select id, name, updated_at,
+                       case when jsonb_typeof(state->'combatants') = 'array' then jsonb_array_length(state->'combatants') else 0 end as combatants
+                from open5e.user_saved_trackers where user_id = ? order by updated_at desc, id desc""",
+                (rs, row) -> new SavedTracker(rs.getLong("id"), rs.getString("name"), rs.getTimestamp("updated_at").toInstant(),
+                        rs.getInt("combatants")),
+                userId);
+    }
+
+    /** Starts a new, empty tracker with this name, putting the one in use aside first. Resolves to the tracker now in use. */
+    @Transactional
+    public ObjectNode newTracker(long userId, String name) {
+        String clean = name == null ? "" : name.trim();
+        if (clean.isEmpty() || clean.length() > MAX_TRACKER_NAME) {
+            throw badRequest("A tracker's name must be 1 to " + MAX_TRACKER_NAME + " characters");
+        }
+        shelveActive(userId);
+        ObjectNode fresh = jsonMapper.createObjectNode();
+        fresh.put("version", 1);
+        fresh.put("name", clean);
+        fresh.putArray("combatants");
+        upsertJson("user_tracker_states", "state", userId, fresh);
+        return tracker(userId);
+    }
+
+    /** Makes a tracker that was put aside the one in use, putting the one that was in use aside. Resolves to the new one in use. */
+    @Transactional
+    public ObjectNode openTracker(long userId, long id) {
+        record Shelved(String name, String state) {
+        }
+        Shelved shelved = jdbc.query("select name, state::text from open5e.user_saved_trackers where id = ? and user_id = ?",
+                rs -> rs.next() ? new Shelved(rs.getString(1), rs.getString(2)) : null, id, userId);
+        if (shelved == null) {
+            throw notFound();
+        }
+        jdbc.update("delete from open5e.user_saved_trackers where id = ?", id); // first, so that it frees its place
+        shelveActive(userId);
+        ObjectNode state = (ObjectNode) jsonMapper.readTree(shelved.state());
+        if (!state.path("name").isString() || state.path("name").asString().isBlank()) {
+            state.put("name", shelved.name());
+        }
+        upsertJson("user_tracker_states", "state", userId, state);
+        return tracker(userId);
+    }
+
+    /** Deletes a tracker that was put aside. */
+    public void deleteSavedTracker(long userId, long id) {
+        if (jdbc.update("delete from open5e.user_saved_trackers where id = ? and user_id = ?", id, userId) == 0) {
+            throw notFound();
+        }
+    }
+
+    /** Puts the tracker in use aside, unless it is empty and unnamed (nothing to come back to). */
+    private void shelveActive(long userId) {
+        ObjectNode active = tracker(userId);
+        JsonNode combatants = active.path("combatants");
+        String name = active.path("name").isString() ? active.path("name").asString().trim() : "";
+        if (!(combatants.isArray() && combatants.size() > 0) && name.isEmpty()) {
+            return;
+        }
+        Integer count = jdbc.queryForObject("select count(*) from open5e.user_saved_trackers where user_id = ?", Integer.class, userId);
+        if (count != null && count >= MAX_SAVED_TRACKERS) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "You can put " + MAX_SAVED_TRACKERS + " trackers aside at most; delete one first");
+        }
+        String label = name.isEmpty() ? UNTITLED_TRACKER : name.substring(0, Math.min(name.length(), MAX_TRACKER_NAME));
+        jdbc.update("insert into open5e.user_saved_trackers (user_id, name, state) values (?, ?, ?::jsonb)",
+                userId, label, jsonMapper.writeValueAsString(active));
     }
 
     // ----- saved encounters
@@ -216,6 +309,10 @@ public class ProfileService {
             }
         }
         return true;
+    }
+
+    private static ResponseStatusException notFound() {
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, "No such tracker");
     }
 
     private static ResponseStatusException badRequest(String detail) {
