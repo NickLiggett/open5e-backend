@@ -131,8 +131,24 @@ class ProfileTest {
                 .andExpect(jsonPath("$.mode").value("dark"));
     }
 
+    @Test
+    void keepsTheTrackersColumnsAndWhatItsNotesAreCalled() throws Exception {
+        json(put("/api/me/settings"), DM, "{\"trackerColumns\": [\"initiative\", \"name\", \"note1\"], \"noteNames\": [\"Conditions\", \"\"]}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.trackerColumns[2]").value("note1"))
+                .andExpect(jsonPath("$.noteNames[0]").value("Conditions"));
+
+        as(get("/api/me/settings"), DM).andExpect(jsonPath("$.trackerColumns.length()").value(3));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {
+            "{\"trackerColumns\": \"name\"}",
+            "{\"trackerColumns\": [\"name\", 4]}",
+            "{\"trackerColumns\": [\"name\", \"name\"]}",
+            "{\"trackerColumns\": [\"a-column-name-that-is-much-too-long-to-be-one\"]}",
+            "{\"noteNames\": [\"a\", \"b\", \"c\", \"d\"]}",
+            "{\"noteNames\": [\"a name that is longer than thirty characters\"]}",
             "{\"hpMode\": \"sideways\"}",
             "{\"hpMode\": \"UP\"}",
             "{\"hpMode\": 1}",

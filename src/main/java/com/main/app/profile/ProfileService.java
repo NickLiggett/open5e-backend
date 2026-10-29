@@ -9,10 +9,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -41,6 +43,8 @@ public class ProfileService {
     private static final Set<String> MODES = Set.of("light", "dark", "system");
     private static final Set<String> HP_MODES = Set.of("down", "up");
     private static final Set<String> COLORS = Set.of("primary", "secondary");
+    /** The settings that are a short list of short words or names: the tracker's columns, and what its Notes columns are called. */
+    private static final Map<String, int[]> WORD_LISTS = Map.of("trackerColumns", new int[]{30, 40}, "noteNames", new int[]{3, 30});
     private static final Pattern HEX_COLOR = Pattern.compile("#[0-9a-fA-F]{6}");
 
     /** The picture types we keep. SVG is left out on purpose: it can carry scripts. */
@@ -65,7 +69,7 @@ public class ProfileService {
     // ----- settings
 
     /**
-     * The user's settings (mode, main color, second color, hpMode: whether hit points count down or up), as far as they have chosen any, with {@code avatarVersion}:
+     * The user's settings (mode, main color, second color, hpMode: whether hit points count down or up, trackerColumns: which columns the tracker shows, noteNames: what its Notes columns are called), as far as they have chosen any, with {@code avatarVersion}:
      * the version of their avatar picture, or null if they have none. It is worked out here and ignored if sent back.
      */
     public ObjectNode settings(long userId) {
@@ -97,6 +101,8 @@ public class ProfileService {
                     throw badRequest("hpMode must be down or up");
                 }
                 clean.put(name, value);
+            } else if (WORD_LISTS.containsKey(name)) {
+                clean.set(name, wordList(name, body.get(name)));
             } else if (COLORS.contains(name)) {
                 if (value == null || !HEX_COLOR.matcher(value).matches()) {
                     throw badRequest(name + " must be a color like #1976d2");
@@ -108,6 +114,26 @@ public class ProfileService {
         }
         upsertJson("user_settings", "settings", userId, clean);
         return settings(userId);
+    }
+
+    /** A list of at most so many strings, each at most so long (see {@link #WORD_LISTS}); a column may be listed once. */
+    private ArrayNode wordList(String name, JsonNode value) {
+        int[] limits = WORD_LISTS.get(name);
+        if (!value.isArray() || value.size() > limits[0]) {
+            throw badRequest(name + " must be a list of at most " + limits[0] + " texts");
+        }
+        ArrayNode list = jsonMapper.createArrayNode();
+        Set<String> seen = new java.util.HashSet<>();
+        for (JsonNode item : value) {
+            if (!item.isString() || item.asString().length() > limits[1]) {
+                throw badRequest(name + " must be texts of at most " + limits[1] + " characters");
+            }
+            if (name.equals("trackerColumns") && !seen.add(item.asString())) {
+                throw badRequest("trackerColumns lists " + item.asString() + " twice");
+            }
+            list.add(item.asString());
+        }
+        return list;
     }
 
     // ----- tracker
