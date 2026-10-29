@@ -454,7 +454,11 @@ someone else's, and signing out of one browser and into another finds them as yo
 | `GET /api/me/settings` | Your settings, as far as you have chosen any: `mode` (`light`, `dark` or `system`), `primary` and `secondary` (`#rrggbb`). Also `avatarVersion` (see below), or `null` without an avatar |
 | `PUT /api/me/settings` | **Replaces** your settings with the body's. Unknown settings and bad values are a `400`. `avatarVersion` is ignored, so a fetched object can be sent back |
 | `GET /api/me/tracker` | The state you left your initiative tracker in: any JSON object you saved, or `{}` |
-| `PUT /api/me/tracker` | Replaces it. The shape is the app's to choose; it must be a JSON object of up to 256 KB (`413` beyond that) |
+| `PUT /api/me/tracker` | Replaces it. The shape is the app's to choose; it must be a JSON object of up to 256 KB (`413` beyond that). This is the tracker **in use**; it may carry a `name` |
+| `GET /api/me/trackers` | The trackers you have **put aside**, most recent first: `[{id, name, updatedAt, combatants}]` (`combatants` is how many are in its turn order) |
+| `POST /api/me/trackers` | Starts a new tracker, `{"name": "..."}` (1 to 60 characters, else `400`): the one in use is put aside first, then the tracker in use becomes `{"version": 1, "name": ..., "combatants": []}`, which is what it answers. One transaction |
+| `POST /api/me/trackers/{id}/open` | Swaps a tracker you put aside with the one in use: the one in use is put aside, and the chosen one becomes the tracker in use (it gets the name it was put aside under if its state has none). Answers the tracker now in use. `404` if it isn't yours. One transaction |
+| `DELETE /api/me/trackers/{id}` | Deletes one you put aside (`204`, or `404` if it isn't yours) |
 | `GET /api/me/encounters` | The encounters you saved on the frontend's Encounters page: any JSON object you saved, or `{}` |
 | `PUT /api/me/encounters` | Replaces them. Like the tracker, the shape is the app's to choose: a JSON object of up to 256 KB (`413` beyond that) |
 | `PUT /api/me/avatar` | Sets your avatar to the body: a PNG, JPEG, WebP or GIF picture of up to 512 KB, sent as is with its `Content-Type`. The bytes must be that kind of picture (`400`), and other types, such as SVG, are a `415`. Answers `{"avatarVersion": ...}` |
@@ -470,7 +474,12 @@ curl -X PUT -H 'X-User: dm' -H 'Content-Type: image/png' --data-binary @me.png h
 curl -o dm.png http://localhost:8080/api/users/dm/avatar
 ```
 
-They are kept in the tables `user_settings`, `user_avatars`, `user_tracker_states` and `user_encounter_states`, and deleted with the user.
+A tracker in use that has no combatants and no name is not worth keeping, so it is not put aside. A tracker put aside
+without a name is called "Untitled tracker". Names are labels, so two can share one. You can put at most 50 aside (`409`
+when putting one more aside; opening one frees its own place first, so a swap always works). Each obeys the 256 KB limit.
+
+They are kept in the tables `user_settings`, `user_avatars`, `user_tracker_states`, `user_saved_trackers` and
+`user_encounter_states`, and deleted with the user.
 
 ### Players
 
@@ -514,7 +523,7 @@ nothing. Either side can end it at any time; the characters stay with their owne
 | `PUT /api/party/members/{username}` | Asks a user to join (`404` if there is no such user, `400` for yourself or beyond 30 people). Asking again changes nothing |
 | `DELETE /api/party/members/{username}` | Removes them, or withdraws the request |
 | `GET /api/party/players` | The characters of the people who have accepted, whether they own or play them, leaving out your own. Read-only (`role` is `PARTY`) |
-| `GET /api/party/trackers` | The DM trackers you may watch: for each DM whose party you have joined and whose fight one of your characters is in, `{dm, updatedAt, combatants}` in turn order (the first is up). See below |
+| `GET /api/party/trackers` | The DM trackers you may watch: for each DM whose party you have joined and whose fight one of your characters is in, `{dm, trackerId, name, live, updatedAt, combatants}` in turn order (the first is up): one for each tracker of a DM's, the one in use (`live`, `trackerId` null) and those they put aside, that has one of your characters in it. See below |
 | `GET /api/party/invitations` | The parties you have been asked to join or are in: `{dm, status}` |
 | `POST /api/party/invitations/{dm}/accept` | Joins that DM's party |
 | `DELETE /api/party/invitations/{dm}` | Turns the request down, or leaves the party |
@@ -526,7 +535,7 @@ gives a member a new view of it, built from an allowlist of fields: each row's `
 `playerId` (a character) and `mine` (the character is yours, owned or played), and its `ac` and `hp`. Those two are
 `null` for anything but a character (a row with a `playerId`, or of type `PC`) until the DM reveals the row, which the
 app does by saving `"revealed": true` on it. Which creature a monster is, notes and everything else the DM kept are
-never sent. A DM whose fight has none of your characters is left out, as is a pending invitation. It is meant to be
+never sent. A tracker with none of your characters in it is left out, as is a pending invitation. A DM's trackers come together: the one in use first, then those they put aside, most recently saved first; `name` is what the DM called each (`""` if nothing). The same hiding rules apply to those put aside. It is meant to be
 asked every few seconds: it sends an `ETag` and answers `304` while nothing has changed.
 
 ## Refreshing default content
@@ -700,6 +709,7 @@ Flyway manages the `open5e` schema. Migrations are in `src/main/resources/db/mig
 | `V4__email_invitations.sql` | `users.verified_email` and `document_invitations`: pending invitations for an email address, deleted with the document or the inviter |
 | `V5__player_characters.sql` | `player_characters`: a user's player characters, with the rules they use and optionally the user who plays them; deleted with the owner |
 | `V6__parties.sql` | `party_members`: the users a DM has asked to join their party, and whether they have accepted |
+| `V8__saved_trackers.sql` | `user_saved_trackers`: the initiative trackers a user has put aside, to swap back in later; deleted with the user |
 
 - **Empty database:** Flyway runs all the migrations, creating an empty schema; the importer fills it.
 - **Restored dump** of this app's database: it includes Flyway's history table, so Flyway finds the schema up to date
@@ -736,7 +746,8 @@ use transactions that are rolled back. To run them against another database, set
 | `DefaultContentProtectionTest` | The database refuses changes to default content and documents unless a transaction opts in |
 | `VisibilityTest`, `AnonymousVisibilityTest` | Who sees what through real requests: owners, members, strangers, anonymous requests |
 | `TokenSignInTest` | Token sign-in: first sign-in, username clashes, signed-in writes, invalid tokens |
-| `PartyTrackerTest` | A party member's view of the DM's tracker: monsters' AC and HP hidden until revealed, only allowed fields sent, characters shown, owned or played, nothing for pending invitations, strangers or after leaving, `304` |
+| `PartyTrackerTest` | A party member's view of the DM's tracker: monsters' AC and HP hidden until revealed, trackers a DM put aside shown as not live, only allowed fields sent, characters shown, owned or played, nothing for pending invitations, strangers or after leaving, `304` |
+| `SavedTrackersTest` | Trackers put aside: listing, starting a new one, swapping both ways, other users' are `404`, deleting, the limit of 50, deleted with the user |
 | `PartyTest` | Parties: pending requests show nothing, accepting, read-only access to party characters (owned or played), leaving, removing, withdrawing, size limit, deleting the DM |
 | `PlayerTest`, `PlayerSignInTest` | Player characters: owner and player permissions, strangers, validation, limits, deleting the user who plays one, and refusing anonymous requests |
 | `InvitationTest` | Email invitations: sending, accepting on a verified sign-in, unverified or expired addresses, roles, direct adds, cancelling, owner-only, limits (the mail server is a mock) |

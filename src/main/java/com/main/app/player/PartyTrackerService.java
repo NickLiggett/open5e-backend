@@ -11,6 +11,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -26,7 +27,8 @@ import java.util.Set;
 @Transactional(readOnly = true)
 public class PartyTrackerService {
 
-    private record Saved(String dm, Instant updatedAt, String state) {
+    /** A tracker as kept: {@code trackerId} and {@code name} are null for the one in use (its name is in its state). */
+    private record Saved(String dm, Long trackerId, String name, Instant updatedAt, String state) {
     }
 
     private final CurrentUser currentUser;
@@ -41,7 +43,7 @@ public class PartyTrackerService {
 
     /**
      * The trackers of the DMs whose party the current user has joined and in whose turn order one of their characters
-     * (owned or played) is, one for each DM. Pending invitations and other people's trackers show nothing.
+     * (owned or played) is: each of a DM's trackers, the one in use and those put aside, is its own entry. Pending invitations and other people's trackers show nothing.
      */
     public List<PartyTrackerDTO> trackers() {
         long me = currentUser.id().orElseThrow(() ->
@@ -51,28 +53,42 @@ public class PartyTrackerService {
         if (mine.isEmpty()) {
             return List.of();
         }
-        List<Saved> saved = jdbc.query("""
+        List<Saved> saved = new ArrayList<>(jdbc.query("""
                 select u.username, t.updated_at, t.state::text as state
                 from open5e.party_members m
                 join open5e.users u on u.id = m.dm_id
                 join open5e.user_tracker_states t on t.user_id = m.dm_id
-                where m.user_id = ? and m.status = 'ACCEPTED' order by u.username""",
-                (rs, row) -> new Saved(rs.getString("username"), rs.getTimestamp("updated_at").toInstant(), rs.getString("state")),
-                me);
+                where m.user_id = ? and m.status = 'ACCEPTED'""",
+                (rs, row) -> new Saved(rs.getString("username"), null, null, rs.getTimestamp("updated_at").toInstant(), rs.getString("state")),
+                me));
+        saved.addAll(jdbc.query("""
+                select u.username, t.id, t.name, t.updated_at, t.state::text as state
+                from open5e.party_members m
+                join open5e.users u on u.id = m.dm_id
+                join open5e.user_saved_trackers t on t.user_id = m.dm_id
+                where m.user_id = ? and m.status = 'ACCEPTED'""",
+                (rs, row) -> new Saved(rs.getString("username"), rs.getLong("id"), rs.getString("name"),
+                        rs.getTimestamp("updated_at").toInstant(), rs.getString("state")),
+                me));
+        // by DM, the one in use first, then the most recently saved
+        saved.sort(Comparator.comparing(Saved::dm).thenComparing(one -> one.trackerId() != null)
+                .thenComparing(Saved::updatedAt, Comparator.reverseOrder()));
 
         List<PartyTrackerDTO> result = new ArrayList<>();
         for (Saved one : saved) {
-            List<PartyTrackerDTO.Combatant> combatants = view(one.state(), mine);
+            JsonNode state = jsonMapper.readTree(one.state());
+            List<PartyTrackerDTO.Combatant> combatants = view(state, mine);
             if (combatants.stream().anyMatch(PartyTrackerDTO.Combatant::mine)) {
-                result.add(new PartyTrackerDTO(one.dm(), one.updatedAt(), combatants));
+                String name = one.trackerId() != null ? one.name() : state.path("name").isString() ? state.path("name").asString() : "";
+                result.add(new PartyTrackerDTO(one.dm(), one.trackerId(), name, one.trackerId() == null, one.updatedAt(), combatants));
             }
         }
         return result;
     }
 
     /** The turn order as a player sees it, from the DM's saved state. Anything not understood is left out. */
-    private List<PartyTrackerDTO.Combatant> view(String state, Set<Long> mine) {
-        JsonNode rows = jsonMapper.readTree(state).path("combatants");
+    private List<PartyTrackerDTO.Combatant> view(JsonNode state, Set<Long> mine) {
+        JsonNode rows = state.path("combatants");
         List<PartyTrackerDTO.Combatant> combatants = new ArrayList<>();
         if (!rows.isArray()) {
             return combatants;
