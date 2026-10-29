@@ -141,6 +141,36 @@ class ProfileTest {
         as(get("/api/me/settings"), DM).andExpect(jsonPath("$.trackerColumns.length()").value(3));
     }
 
+    @Test
+    void keepsTheFiltersSavedForEachPageAndNothingElseInThem() throws Exception {
+        json(put("/api/me/settings"), DM, "{\"savedFilters\": {\"spells\": [{\"name\": \" Fire \", \"extra\": 1, \"filters\": {\"damageType\": \"fire\", \"sources\": [\"kp\"]}}], \"creatures\": []}}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.savedFilters.spells[0].name").value("Fire"))
+                .andExpect(jsonPath("$.savedFilters.spells[0].filters.sources[0]").value("kp"))
+                .andExpect(jsonPath("$.savedFilters.spells[0].extra").doesNotExist())
+                .andExpect(jsonPath("$.savedFilters.creatures.length()").value(0));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"savedFilters\": []}",
+            "{\"savedFilters\": {\"spells\": {}}}",
+            "{\"savedFilters\": {\"spells\": [{\"filters\": {}}]}}",
+            "{\"savedFilters\": {\"spells\": [{\"name\": \" \", \"filters\": {}}]}}",
+            "{\"savedFilters\": {\"spells\": [{\"name\": \"Fire\", \"filters\": []}]}}",
+            "{\"savedFilters\": {\"spells\": [{\"name\": \"a name that is much longer than forty characters\", \"filters\": {}}]}}",
+    })
+    void refusesSavedFiltersThatAreNotShapedRight(String body) throws Exception {
+        json(put("/api/me/settings"), DM, body).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void refusesTooManySavedFiltersForAPage() throws Exception {
+        String one = "{\"name\": \"f\", \"filters\": {}}";
+        String many = String.join(",", java.util.Collections.nCopies(ProfileService.MAX_SAVED_FILTERS + 1, one));
+        json(put("/api/me/settings"), DM, "{\"savedFilters\": {\"spells\": [" + many + "]}}").andExpect(status().isBadRequest());
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {
             "{\"trackerColumns\": \"name\"}",

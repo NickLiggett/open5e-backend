@@ -31,6 +31,10 @@ public class ProfileService {
     static final int MAX_TRACKER_CHARS = 256 * 1024;
     /** The most trackers a user can have put aside. */
     static final int MAX_SAVED_TRACKERS = 50;
+    /** The most pages that can have saved filters, how many each, and how big all of them can be, as JSON text. */
+    static final int MAX_FILTER_PAGES = 12;
+    static final int MAX_SAVED_FILTERS = 20;
+    static final int MAX_SAVED_FILTERS_CHARS = 32 * 1024;
     /** The longest a tracker's name can be when it is given. */
     static final int MAX_TRACKER_NAME = 60;
     static final String UNTITLED_TRACKER = "Untitled tracker";
@@ -69,7 +73,7 @@ public class ProfileService {
     // ----- settings
 
     /**
-     * The user's settings (mode, main color, second color, hpMode: whether hit points count down or up, trackerColumns: which columns the tracker shows, noteNames: what its Notes columns are called), as far as they have chosen any, with {@code avatarVersion}:
+     * The user's settings (mode, main color, second color, hpMode: whether hit points count down or up, trackerColumns: which columns the tracker shows, noteNames: what its Notes columns are called, savedFilters: the filters saved by name for each page), as far as they have chosen any, with {@code avatarVersion}:
      * the version of their avatar picture, or null if they have none. It is worked out here and ignored if sent back.
      */
     public ObjectNode settings(long userId) {
@@ -101,6 +105,8 @@ public class ProfileService {
                     throw badRequest("hpMode must be down or up");
                 }
                 clean.put(name, value);
+            } else if (name.equals("savedFilters")) {
+                clean.set(name, savedFilters(body.get(name)));
             } else if (WORD_LISTS.containsKey(name)) {
                 clean.set(name, wordList(name, body.get(name)));
             } else if (COLORS.contains(name)) {
@@ -114,6 +120,39 @@ public class ProfileService {
         }
         upsertJson("user_settings", "settings", userId, clean);
         return settings(userId);
+    }
+
+    /**
+     * The filters a user saved under a name, for each page that has them: {@code {"spells": [{"name": "Fire", "filters": {...}}]}}.
+     * What a page's filters are is the app's to say; this keeps their shape and size sane.
+     */
+    private ObjectNode savedFilters(JsonNode value) {
+        if (!value.isObject() || value.size() > MAX_FILTER_PAGES) {
+            throw badRequest("savedFilters must be an object with at most " + MAX_FILTER_PAGES + " pages");
+        }
+        ObjectNode clean = jsonMapper.createObjectNode();
+        for (String page : value.propertyNames()) {
+            JsonNode saved = value.get(page);
+            if (page.isEmpty() || page.length() > 30 || !saved.isArray() || saved.size() > MAX_SAVED_FILTERS) {
+                throw badRequest("savedFilters needs a page name and at most " + MAX_SAVED_FILTERS + " saved filters for it");
+            }
+            ArrayNode list = jsonMapper.createArrayNode();
+            for (JsonNode one : saved) {
+                JsonNode name = one.path("name");
+                if (!name.isString() || name.asString().isBlank() || name.asString().length() > 40 || !one.path("filters").isObject()) {
+                    throw badRequest("A saved filter needs a name of at most 40 characters, and its filters");
+                }
+                ObjectNode item = jsonMapper.createObjectNode();
+                item.put("name", name.asString().trim());
+                item.set("filters", one.get("filters"));
+                list.add(item);
+            }
+            clean.set(page, list);
+        }
+        if (jsonMapper.writeValueAsString(clean).length() > MAX_SAVED_FILTERS_CHARS) {
+            throw badRequest("savedFilters is too big: " + MAX_SAVED_FILTERS_CHARS / 1024 + " KB of JSON at most");
+        }
+        return clean;
     }
 
     /** A list of at most so many strings, each at most so long (see {@link #WORD_LISTS}); a column may be listed once. */
