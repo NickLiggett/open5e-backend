@@ -215,7 +215,7 @@ public class PlayerService {
     private Vitals vitals(ResultSet rs) throws SQLException {
         Integer max = rs.getObject("hit_points", Integer.class);
         Integer stored = rs.getObject("current_hp", Integer.class);
-        Integer current = stored == null ? max : max == null ? stored : Math.min(stored, max);
+        Integer current = stored == null ? max : max == null ? stored : Integer.valueOf(Math.min(stored, max));
         return new Vitals(current, rs.getInt("temp_hp"), rs.getBoolean("heroic_inspiration"),
                 jsonMapper.readValue(rs.getString("conditions"), NAMES), rs.getInt("exhaustion"),
                 rs.getInt("death_save_successes"), rs.getInt("death_save_failures"));
