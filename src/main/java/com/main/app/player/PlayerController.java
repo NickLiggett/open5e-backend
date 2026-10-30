@@ -67,6 +67,12 @@ public class PlayerController {
         return players.updateVitals(id, request);
     }
 
+    /** Replaces the sheet. The owner and the player can; someone seeing the character through their party can't. */
+    @PutMapping("/{id}/sheet")
+    public PlayerDTO replaceSheet(@PathVariable long id, @RequestBody SheetRequest request) {
+        return players.replaceSheet(id, request);
+    }
+
     /** Owner only. */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable long id) {

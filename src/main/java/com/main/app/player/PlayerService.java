@@ -51,7 +51,7 @@ public class PlayerService {
                    p.armor_class, p.hit_points, p.initiative_bonus, p.notes, p.owner_id, p.played_by as played_by_id,
                    o.username as owner, pb.username as played_by, p.created_at, p.updated_at, p.current_hp, p.temp_hp,
                    p.heroic_inspiration, p.conditions, p.exhaustion, p.death_save_successes, p.death_save_failures,
-                   p.version
+                   p.sheet, p.version
             from open5e.player_characters p
             join open5e.users o on o.id = p.owner_id
             left join open5e.users pb on pb.id = p.played_by
@@ -184,6 +184,31 @@ public class PlayerService {
         return visible(id, me);
     }
 
+    /**
+     * Replaces the sheet. The owner and whoever plays the character can; a DM seeing it through their party can't. The
+     * rest of the character, and what changes during play, is not touched; the version moves on, like any other save
+     * of the character, so a copy opened before it is out of date.
+     */
+    public PlayerDTO replaceSheet(long id, SheetRequest request) {
+        long me = requireUser();
+        PlayerDTO existing = visible(id, me);
+        if (existing.role().equals("PARTY")) {
+            throw readOnly(existing);
+        }
+        if (request == null) {
+            throw badRequest("A sheet is a JSON object");
+        }
+        if (request.version() != null && request.version() != existing.version()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, existing.name() + " was saved by someone else "
+                    + "since you opened it; reload it to see their changes");
+        }
+        String json = request.sheet() == null ? "" : jsonMapper.writeValueAsString(request.sheet());
+        SheetChecks.checked(request.sheet(), json);
+        jdbc.update("update open5e.player_characters set sheet = ?::jsonb, version = version + 1, updated_at = now() where id = ?",
+                json, id);
+        return visible(id, me);
+    }
+
     /** Owner only. */
     public void delete(long id) {
         long me = requireUser();
@@ -208,7 +233,8 @@ public class PlayerService {
                 rs.getObject("hit_points", Integer.class), rs.getInt("initiative_bonus"), rs.getString("notes"),
                 rs.getString("owner"), rs.getString("played_by"), role(rs.getLong("owner_id"), rs.getObject("played_by_id", Long.class), me),
                 rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant(),
-                jsonMapper.readValue(rs.getString("classes"), CLASS_LIST), vitals(rs), rs.getInt("version"));
+                jsonMapper.readValue(rs.getString("classes"), CLASS_LIST), vitals(rs),
+                jsonMapper.readTree(rs.getString("sheet")), rs.getInt("version"));
     }
 
     /** A character never hurt is at its maximum, and never above it if the maximum was lowered since. */
