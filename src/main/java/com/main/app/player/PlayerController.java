@@ -3,6 +3,7 @@ package com.main.app.player;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -58,6 +59,12 @@ public class PlayerController {
     @PutMapping("/{id}")
     public PlayerDTO update(@PathVariable long id, @RequestBody PlayerRequest request) {
         return players.update(id, request);
+    }
+
+    /** What changes during play, the fields given only. Anyone who can see the character can change it, a DM included. */
+    @PatchMapping("/{id}/vitals")
+    public PlayerDTO updateVitals(@PathVariable long id, @RequestBody Vitals request) {
+        return players.updateVitals(id, request);
     }
 
     /** Owner only. */

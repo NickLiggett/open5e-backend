@@ -12,8 +12,11 @@ import java.util.List;
  * @param playedBy        the username of the user who plays the character, or null; it may be the owner's own
  * @param classes         the classes of a multiclass character, first class first, with a level each. If left out,
  *                        {@code classKey}, {@code className} and {@code level} make a single class.
+ * @param version         the {@code version} of the character this was edited from; if it is no longer the current
+ *                        one, someone saved in between and the save is refused (409). Left out, nothing is checked.
  */
 public record PlayerRequest(String name, String ruleset, String classKey, String className, String speciesKey,
                             String speciesName, Integer level, Integer armorClass, Integer hitPoints,
-                            Integer initiativeBonus, String notes, String playedBy, List<ClassLevel> classes) {
+                            Integer initiativeBonus, String notes, String playedBy, List<ClassLevel> classes,
+                            Integer version) {
 }

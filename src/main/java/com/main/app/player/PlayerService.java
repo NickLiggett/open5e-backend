@@ -11,6 +11,8 @@ import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -23,7 +25,8 @@ import java.util.Set;
  * Player characters. A character belongs to the user who made it (the owner), who can change anything about it and
  * delete it. It can name the user who plays it: they see it and can keep its numbers up to date (level, armor class,
  * hit points, initiative bonus, notes), but can't rename it, change its rules, or hand it on. A DM whose party the
- * owner or the player has accepted can see it and nothing more. Anyone else can't see it at all, which is reported as
+ * owner or the player has accepted can see it, and can change what changes during play (current and temporary hit
+ * points, conditions, inspiration, exhaustion, death saves) and nothing more. Anyone else can't see it at all, which is reported as
  * not found.
  */
 @Service
@@ -36,11 +39,19 @@ public class PlayerService {
     private static final Set<String> RULESETS = Set.of("5e-2014", "5e-2024");
     private static final TypeReference<List<ClassLevel>> CLASS_LIST = new TypeReference<>() {
     };
+    private static final TypeReference<List<String>> NAMES = new TypeReference<>() {
+    };
+    /** The official conditions; exhaustion is a level of its own, kept apart. */
+    static final List<String> CONDITIONS = List.of("Blinded", "Charmed", "Deafened", "Frightened", "Grappled",
+            "Incapacitated", "Invisible", "Paralyzed", "Petrified", "Poisoned", "Prone", "Restrained", "Stunned",
+            "Unconscious");
 
     private static final String SELECT = """
             select p.id, p.name, p.ruleset, p.class_key, p.class_name, p.classes, p.species_key, p.species_name, p.level,
                    p.armor_class, p.hit_points, p.initiative_bonus, p.notes, p.owner_id, p.played_by as played_by_id,
-                   o.username as owner, pb.username as played_by, p.created_at, p.updated_at
+                   o.username as owner, pb.username as played_by, p.created_at, p.updated_at, p.current_hp, p.temp_hp,
+                   p.heroic_inspiration, p.conditions, p.exhaustion, p.death_save_successes, p.death_save_failures,
+                   p.version
             from open5e.player_characters p
             join open5e.users o on o.id = p.owner_id
             left join open5e.users pb on pb.id = p.played_by
@@ -109,12 +120,16 @@ public class PlayerService {
         if (existing.role().equals("PARTY")) {
             throw readOnly(existing);
         }
+        if (request.version() != null && request.version() != existing.version()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, existing.name() + " was saved by someone else "
+                    + "since you opened it; reload it to see their changes");
+        }
         if (existing.role().equals("OWNER")) {
             jdbc.update("""
                     update open5e.player_characters set played_by = ?, name = ?, ruleset = ?, class_key = ?,
                         class_name = ?, classes = ?::jsonb, species_key = ?, species_name = ?, level = ?,
-                        armor_class = ?, hit_points = ?, initiative_bonus = ?, notes = ?, updated_at = now()
-                    where id = ?""",
+                        armor_class = ?, hit_points = ?, initiative_bonus = ?, notes = ?, version = version + 1,
+                        updated_at = now() where id = ?""",
                     playedBy(clean.playedBy()), clean.name(), clean.ruleset(), clean.classKey(),
                     clean.className(), classesJson(clean), clean.speciesKey(), clean.speciesName(), clean.level(),
                     clean.armorClass(), clean.hitPoints(), clean.initiativeBonus(), clean.notes(), id);
@@ -132,10 +147,40 @@ public class PlayerService {
             }
             jdbc.update("""
                     update open5e.player_characters set level = ?, classes = ?::jsonb, armor_class = ?, hit_points = ?,
-                        initiative_bonus = ?, notes = ?, updated_at = now() where id = ?""",
+                        initiative_bonus = ?, notes = ?, version = version + 1, updated_at = now()
+                    where id = ?""",
                     clean.level(), classesJson(clean), clean.armorClass(), clean.hitPoints(), clean.initiativeBonus(),
                     clean.notes(), id);
         }
+        return visible(id, me);
+    }
+
+    /**
+     * Changes what changes during play: the fields given, and only those. Anyone who can see the character can, the
+     * DM of a party member included; the rest of the character is not touched and its version stays as it is.
+     */
+    public PlayerDTO updateVitals(long id, Vitals request) {
+        long me = requireUser();
+        PlayerDTO existing = visible(id, me);
+        if (request == null) {
+            throw badRequest("Nothing to change");
+        }
+        Integer current = range(request.currentHp(), "currentHp", 0, 9999);
+        if (current != null && existing.hitPoints() != null && current > existing.hitPoints()) {
+            throw badRequest("currentHp can't be above the maximum, " + existing.hitPoints());
+        }
+        jdbc.update("""
+                update open5e.player_characters set current_hp = coalesce(?::integer, current_hp),
+                    temp_hp = coalesce(?::integer, temp_hp),
+                    heroic_inspiration = coalesce(?::boolean, heroic_inspiration),
+                    conditions = coalesce(?::jsonb, conditions), exhaustion = coalesce(?::integer, exhaustion),
+                    death_save_successes = coalesce(?::integer, death_save_successes),
+                    death_save_failures = coalesce(?::integer, death_save_failures), updated_at = now()
+                where id = ?""",
+                current, range(request.tempHp(), "tempHp", 0, 999), request.heroicInspiration(),
+                conditionsJson(request.conditions()), range(request.exhaustion(), "exhaustion", 0, 6),
+                range(request.deathSaveSuccesses(), "deathSaveSuccesses", 0, 3),
+                range(request.deathSaveFailures(), "deathSaveFailures", 0, 3), id);
         return visible(id, me);
     }
 
@@ -163,7 +208,35 @@ public class PlayerService {
                 rs.getObject("hit_points", Integer.class), rs.getInt("initiative_bonus"), rs.getString("notes"),
                 rs.getString("owner"), rs.getString("played_by"), role(rs.getLong("owner_id"), rs.getObject("played_by_id", Long.class), me),
                 rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant(),
-                jsonMapper.readValue(rs.getString("classes"), CLASS_LIST));
+                jsonMapper.readValue(rs.getString("classes"), CLASS_LIST), vitals(rs), rs.getInt("version"));
+    }
+
+    /** A character never hurt is at its maximum, and never above it if the maximum was lowered since. */
+    private Vitals vitals(ResultSet rs) throws SQLException {
+        Integer max = rs.getObject("hit_points", Integer.class);
+        Integer stored = rs.getObject("current_hp", Integer.class);
+        Integer current = stored == null ? max : max == null ? stored : Math.min(stored, max);
+        return new Vitals(current, rs.getInt("temp_hp"), rs.getBoolean("heroic_inspiration"),
+                jsonMapper.readValue(rs.getString("conditions"), NAMES), rs.getInt("exhaustion"),
+                rs.getInt("death_save_successes"), rs.getInt("death_save_failures"));
+    }
+
+    /** The conditions as stored, in the order given and without repeats; null if none were sent, which leaves them alone. */
+    private String conditionsJson(List<String> given) {
+        if (given == null) {
+            return null;
+        }
+        List<String> kept = new ArrayList<>();
+        for (String name : given) {
+            String wanted = name == null ? "" : name.strip();
+            String official = CONDITIONS.stream().filter(one -> one.equalsIgnoreCase(wanted)).findFirst()
+                    .orElseThrow(() -> badRequest("'" + wanted + "' isn't a condition; use one of "
+                            + String.join(", ", CONDITIONS)));
+            if (!kept.contains(official)) {
+                kept.add(official);
+            }
+        }
+        return jsonMapper.writeValueAsString(kept);
     }
 
     private String classesJson(Clean clean) {
