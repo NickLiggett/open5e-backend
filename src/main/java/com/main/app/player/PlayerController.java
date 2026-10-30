@@ -19,9 +19,23 @@ import java.util.List;
 public class PlayerController {
 
     private final PlayerService players;
+    private final InventoryService inventory;
 
-    public PlayerController(PlayerService players) {
+    public PlayerController(PlayerService players, InventoryService inventory) {
         this.players = players;
+        this.inventory = inventory;
+    }
+
+    /** What the character carries: coins and items. */
+    @GetMapping("/{id}/inventory")
+    public Inventory inventory(@PathVariable long id) {
+        return inventory.get(id);
+    }
+
+    /** Replaces what the character carries. The owner and the player can; someone seeing it through their party can't. */
+    @PutMapping("/{id}/inventory")
+    public Inventory replaceInventory(@PathVariable long id, @RequestBody Inventory request) {
+        return inventory.replace(id, request);
     }
 
     @GetMapping
