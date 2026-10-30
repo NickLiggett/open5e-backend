@@ -35,7 +35,7 @@ class InventoryTest {
     static final String STRANGER = TestUsers.PREFIX + "invstranger";
 
     static final String BAG = """
-            {"gold": 15, "silver": 3, "copper": 7, "items": [
+            {"platinum": 2, "gold": 15, "silver": 3, "copper": 7, "items": [
               {"itemKey": "srd_rope", "kind": "item", "name": " Rope ", "quantity": 2, "notes": "50 ft"},
               {"itemKey": "srd_cloak", "kind": "MAGIC", "name": "Cloak of Protection", "equipped": true, "attuned": true},
               {"name": "Grandfather's locket", "kind": "ITEM"}]}""";
@@ -73,6 +73,7 @@ class InventoryTest {
     void startsEmpty() throws Exception {
         mvc.perform(get(url()).header(DevCurrentUser.HEADER, DM))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.platinum").value(0))
                 .andExpect(jsonPath("$.gold").value(0))
                 .andExpect(jsonPath("$.silver").value(0))
                 .andExpect(jsonPath("$.copper").value(0))
@@ -82,6 +83,7 @@ class InventoryTest {
     @Test
     void theOwnerKeepsCoinsAndItemsInOrder() throws Exception {
         replace(DM, BAG).andExpect(status().isOk())
+                .andExpect(jsonPath("$.platinum").value(2))
                 .andExpect(jsonPath("$.gold").value(15))
                 .andExpect(jsonPath("$.items.length()").value(3))
                 .andExpect(jsonPath("$.items[0].name").value("Rope"))
@@ -103,6 +105,7 @@ class InventoryTest {
         replace(DM, BAG).andExpect(status().isOk());
 
         replace(DM, "{\"items\": [{\"name\": \"Torch\"}]}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.platinum").value(0))
                 .andExpect(jsonPath("$.gold").value(0))
                 .andExpect(jsonPath("$.items.length()").value(1));
     }
@@ -146,6 +149,7 @@ class InventoryTest {
         String many = "{\"name\": \"A\"},".repeat(InventoryService.MAX_LINES) + "{\"name\": \"B\"}";
         for (String body : new String[]{
                 "{\"gold\": -1}",
+                "{\"platinum\": -1}",
                 "{\"copper\": 10000000}",
                 "{\"items\": [{\"name\": \"  \"}]}",
                 "{\"items\": [{\"name\": \"A\", \"quantity\": 0}]}",

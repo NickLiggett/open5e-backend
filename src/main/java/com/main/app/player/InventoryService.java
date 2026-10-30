@@ -47,13 +47,15 @@ public class InventoryService {
         if (request == null) {
             throw badRequest("An inventory needs its coins and items");
         }
+        int platinum = coins(request.platinum(), "platinum");
         int gold = coins(request.gold(), "gold");
         int silver = coins(request.silver(), "silver");
         int copper = coins(request.copper(), "copper");
         List<Inventory.Line> lines = lines(request.items());
 
-        jdbc.update("update open5e.player_characters set gold = ?, silver = ?, copper = ?, updated_at = now() where id = ?",
-                gold, silver, copper, characterId);
+        jdbc.update("""
+                update open5e.player_characters set platinum = ?, gold = ?, silver = ?, copper = ?, updated_at = now()
+                where id = ?""", platinum, gold, silver, copper, characterId);
         jdbc.update("delete from open5e.player_character_items where character_id = ?", characterId);
         int position = 0;
         for (Inventory.Line line : lines) {
@@ -68,8 +70,9 @@ public class InventoryService {
     }
 
     private Inventory read(long characterId) {
-        Inventory coins = jdbc.queryForObject("select gold, silver, copper from open5e.player_characters where id = ?",
-                (rs, row) -> new Inventory(rs.getInt("gold"), rs.getInt("silver"), rs.getInt("copper"), null),
+        Inventory coins = jdbc.queryForObject("select platinum, gold, silver, copper from open5e.player_characters where id = ?",
+                (rs, row) -> new Inventory(rs.getInt("platinum"), rs.getInt("gold"), rs.getInt("silver"),
+                        rs.getInt("copper"), null),
                 characterId);
         List<Inventory.Line> items = jdbc.query("""
                 select item_key, kind, name, quantity, equipped, attuned, notes
@@ -77,7 +80,7 @@ public class InventoryService {
                 (rs, row) -> new Inventory.Line(rs.getString("item_key"), rs.getString("kind"), rs.getString("name"),
                         rs.getInt("quantity"), rs.getBoolean("equipped"), rs.getBoolean("attuned"), rs.getString("notes")),
                 characterId);
-        return new Inventory(coins.gold(), coins.silver(), coins.copper(), items);
+        return new Inventory(coins.platinum(), coins.gold(), coins.silver(), coins.copper(), items);
     }
 
     private static int coins(Integer value, String field) {

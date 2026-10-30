@@ -5,12 +5,13 @@ import java.util.List;
 /**
  * What a character carries, as sent and as answered.
  *
- * @param gold   gold pieces, 0 if left out
- * @param silver silver pieces, 0 if left out
- * @param copper copper pieces, 0 if left out
- * @param items  the lines, in order; none if left out
+ * @param platinum platinum pieces, 0 if left out
+ * @param gold     gold pieces, 0 if left out
+ * @param silver   silver pieces, 0 if left out
+ * @param copper   copper pieces, 0 if left out
+ * @param items    the lines, in order; none if left out
  */
-public record Inventory(Integer gold, Integer silver, Integer copper, List<Line> items) {
+public record Inventory(Integer platinum, Integer gold, Integer silver, Integer copper, List<Line> items) {
 
     /**
      * One line of the list.
