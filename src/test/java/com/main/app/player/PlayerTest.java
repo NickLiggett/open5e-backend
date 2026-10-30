@@ -186,11 +186,73 @@ class PlayerTest {
     }
 
     @Test
-    void playingYourOwnCharacterIsNoSpecialMention() throws Exception {
+    void anOwnerCanPlayTheirOwnCharacter() throws Exception {
         long id = create(DM, "{\"name\": \"Solo\", \"ruleset\": \"5e-2014\", \"playedBy\": \"" + DM + "\"}");
 
         mvc.perform(get("/api/players/" + id).header(DevCurrentUser.HEADER, DM))
-                .andExpect(jsonPath("$.playedBy").doesNotExist());
+                .andExpect(jsonPath("$.playedBy").value(DM))
+                .andExpect(jsonPath("$.role").value("OWNER"));
+        mvc.perform(get("/api/players").header(DevCurrentUser.HEADER, DM)).andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void aCharacterCanHaveSeveralClassesWhoseLevelsAddUp() throws Exception {
+        long id = create(DM, "{\"name\": \"Mix\", \"ruleset\": \"5e-2024\", \"level\": 1, \"classes\": ["
+                + "{\"classKey\": \"srd-2024_fighter\", \"className\": \"Fighter\", \"level\": 3},"
+                + "{\"className\": \" Wizard \", \"level\": 2}]}");
+
+        mvc.perform(get("/api/players/" + id).header(DevCurrentUser.HEADER, DM))
+                .andExpect(jsonPath("$.level").value(5))
+                .andExpect(jsonPath("$.className").value("Fighter"))
+                .andExpect(jsonPath("$.classKey").value("srd-2024_fighter"))
+                .andExpect(jsonPath("$.classes.length()").value(2))
+                .andExpect(jsonPath("$.classes[1].className").value("Wizard"))
+                .andExpect(jsonPath("$.classes[1].classKey").doesNotExist())
+                .andExpect(jsonPath("$.classes[1].level").value(2));
+    }
+
+    @Test
+    void aSingleClassIsAListOfOne_andNoClassIsAnEmptyList() throws Exception {
+        long thorin = create(DM, THORIN);
+        long mouse = create(DM, "{\"name\": \"Mouse\", \"ruleset\": \"5e-2024\", \"level\": 4}");
+
+        mvc.perform(get("/api/players/" + thorin).header(DevCurrentUser.HEADER, DM))
+                .andExpect(jsonPath("$.classes.length()").value(1))
+                .andExpect(jsonPath("$.classes[0].className").value("Fighter"))
+                .andExpect(jsonPath("$.classes[0].level").value(5));
+        mvc.perform(get("/api/players/" + mouse).header(DevCurrentUser.HEADER, DM))
+                .andExpect(jsonPath("$.classes.length()").value(0))
+                .andExpect(jsonPath("$.level").value(4));
+    }
+
+    @Test
+    void thePlayerCanRaiseAClassLevelButNotAddAClass() throws Exception {
+        long id = create(DM, "{\"name\": \"Mix\", \"ruleset\": \"5e-2024\", \"playedBy\": \"" + PLAYER + "\", \"classes\": ["
+                + "{\"className\": \"Fighter\", \"level\": 3}, {\"className\": \"Wizard\", \"level\": 2}]}");
+        String raised = "{\"name\": \"Mix\", \"ruleset\": \"5e-2024\", \"playedBy\": \"" + PLAYER + "\", \"classes\": ["
+                + "{\"className\": \"Fighter\", \"level\": 4}, {\"className\": \"Wizard\", \"level\": 2}]}";
+        String added = raised.replace("]}", ", {\"className\": \"Rogue\", \"level\": 1}]}");
+
+        mvc.perform(put("/api/players/" + id).header(DevCurrentUser.HEADER, PLAYER).contentType(MediaType.APPLICATION_JSON).content(raised))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.level").value(6))
+                .andExpect(jsonPath("$.classes[0].level").value(4));
+        mvc.perform(put("/api/players/" + id).header(DevCurrentUser.HEADER, PLAYER).contentType(MediaType.APPLICATION_JSON).content(added))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void refusesBadClassLists() throws Exception {
+        String ok = "\"name\": \"X\", \"ruleset\": \"5e-2014\"";
+        for (String classes : new String[]{
+                "[{\"className\": \"Fighter\", \"level\": 0}]",
+                "[{\"className\": \"Fighter\", \"level\": 21}]",
+                "[{\"className\": \"  \", \"level\": 1}]",
+                "[{\"className\": \"Fighter\", \"level\": 1}, {\"className\": \"fighter\", \"level\": 1}]",
+                "[{\"className\": \"Fighter\", \"level\": 12}, {\"className\": \"Wizard\", \"level\": 9}]",
+                "[" + "{\"className\": \"A\", \"level\": 1},".repeat(PlayerService.MAX_CLASSES) + "{\"className\": \"B\", \"level\": 1}]"}) {
+            send(DM, "{" + ok + ", \"classes\": " + classes + "}").andExpect(status().isBadRequest());
+        }
     }
 
     @Test
