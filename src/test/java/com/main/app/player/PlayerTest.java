@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -304,6 +305,127 @@ class PlayerTest {
         send(DM, "{\"name\": \"One too many\", \"ruleset\": \"5e-2014\"}").andExpect(status().isBadRequest());
         assertThat(jdbc.queryForObject("select count(*) from open5e.player_characters where owner_id = ?", Integer.class, dm))
                 .isEqualTo(PlayerService.MAX_OWNED);
+    }
+
+    @Test
+    void aNewCharacterIsAtFullHealthAndFine() throws Exception {
+        long id = create(DM, THORIN);
+
+        mvc.perform(get("/api/players/" + id).header(DevCurrentUser.HEADER, DM))
+                .andExpect(jsonPath("$.vitals.currentHp").value(52))
+                .andExpect(jsonPath("$.vitals.tempHp").value(0))
+                .andExpect(jsonPath("$.vitals.heroicInspiration").value(false))
+                .andExpect(jsonPath("$.vitals.conditions").isEmpty())
+                .andExpect(jsonPath("$.vitals.exhaustion").value(0))
+                .andExpect(jsonPath("$.vitals.deathSaveSuccesses").value(0))
+                .andExpect(jsonPath("$.vitals.deathSaveFailures").value(0))
+                .andExpect(jsonPath("$.version").value(0));
+    }
+
+    @Test
+    void theVitalsChangeOneFieldAtATime() throws Exception {
+        long id = create(DM, THORIN);
+
+        vitals(DM, id, "{\"currentHp\": 30, \"tempHp\": 5}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.vitals.currentHp").value(30))
+                .andExpect(jsonPath("$.vitals.tempHp").value(5));
+        vitals(PLAYER, id, "{\"conditions\": [\"poisoned\", \"Prone\", \"Prone\"], \"heroicInspiration\": true, \"exhaustion\": 2}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.vitals.conditions[0]").value("Poisoned"))
+                .andExpect(jsonPath("$.vitals.conditions[1]").value("Prone"))
+                .andExpect(jsonPath("$.vitals.conditions.length()").value(2))
+                .andExpect(jsonPath("$.vitals.heroicInspiration").value(true))
+                .andExpect(jsonPath("$.vitals.exhaustion").value(2))
+                .andExpect(jsonPath("$.vitals.currentHp").value(30)) // not sent, so left as it was
+                .andExpect(jsonPath("$.vitals.tempHp").value(5));
+        vitals(DM, id, "{\"conditions\": [], \"deathSaveSuccesses\": 2, \"deathSaveFailures\": 1}")
+                .andExpect(jsonPath("$.vitals.conditions").isEmpty())
+                .andExpect(jsonPath("$.vitals.deathSaveSuccesses").value(2))
+                .andExpect(jsonPath("$.vitals.deathSaveFailures").value(1))
+                .andExpect(jsonPath("$.vitals.heroicInspiration").value(true));
+    }
+
+    @Test
+    void aDmCanChangeThePartyMembersVitalsAndNothingElse() throws Exception {
+        long owner = userService.findOrCreate(PLAYER).id();
+        long dm = userService.findOrCreate(STRANGER).id();
+        jdbc.update("insert into open5e.party_members (dm_id, user_id, status) values (?, ?, 'ACCEPTED')", dm, owner);
+        long id = create(PLAYER, THORIN.replace(", \"playedBy\": \"" + PLAYER + "\"", ""));
+
+        vitals(STRANGER, id, "{\"currentHp\": 10, \"tempHp\": 4, \"conditions\": [\"Stunned\"], \"deathSaveFailures\": 2}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("PARTY"))
+                .andExpect(jsonPath("$.vitals.currentHp").value(10))
+                .andExpect(jsonPath("$.vitals.conditions[0]").value("Stunned"));
+        mvc.perform(put("/api/players/" + id).header(DevCurrentUser.HEADER, STRANGER).contentType(MediaType.APPLICATION_JSON)
+                        .content(THORIN.replace("\"level\": 5", "\"level\": 6")))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/players/" + id).header(DevCurrentUser.HEADER, PLAYER))
+                .andExpect(jsonPath("$.level").value(5))
+                .andExpect(jsonPath("$.vitals.currentHp").value(10)); // what the DM did is what the player sees
+    }
+
+    @Test
+    void aStrangerCannotChangeTheVitals() throws Exception {
+        long id = create(DM, THORIN);
+
+        vitals(STRANGER, id, "{\"currentHp\": 1}").andExpect(status().isNotFound());
+        mvc.perform(get("/api/players/" + id).header(DevCurrentUser.HEADER, DM))
+                .andExpect(jsonPath("$.vitals.currentHp").value(52));
+    }
+
+    @Test
+    void refusesVitalsThatCannotBe() throws Exception {
+        long id = create(DM, THORIN);
+
+        for (String body : new String[]{"{\"currentHp\": 53}", "{\"currentHp\": -1}", "{\"tempHp\": -1}",
+                "{\"tempHp\": 1000}", "{\"exhaustion\": 7}", "{\"deathSaveSuccesses\": 4}",
+                "{\"deathSaveFailures\": -1}", "{\"conditions\": [\"Sleepy\"]}", "{\"conditions\": [null]}"}) {
+            vitals(DM, id, body).andExpect(status().isBadRequest());
+        }
+        mvc.perform(get("/api/players/" + id).header(DevCurrentUser.HEADER, DM))
+                .andExpect(jsonPath("$.vitals.currentHp").value(52));
+    }
+
+    @Test
+    void loweringTheMaximumBringsCurrentHitPointsDownWithIt() throws Exception {
+        long id = create(DM, THORIN);
+        vitals(DM, id, "{\"currentHp\": 40}").andExpect(jsonPath("$.vitals.currentHp").value(40));
+
+        mvc.perform(put("/api/players/" + id).header(DevCurrentUser.HEADER, DM).contentType(MediaType.APPLICATION_JSON)
+                        .content(THORIN.replace("52", "30")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.vitals.currentHp").value(30));
+    }
+
+    @Test
+    void aSaveFromAStaleCopyIsRefusedButOneWithoutAVersionIsNot() throws Exception {
+        long id = create(DM, THORIN);
+        String edited = THORIN.replace("Carries a grudge", "Edited");
+
+        mvc.perform(put("/api/players/" + id).header(DevCurrentUser.HEADER, DM).contentType(MediaType.APPLICATION_JSON)
+                        .content(edited.replace("\"notes\"", "\"version\": 0, \"notes\"")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(1));
+        vitals(DM, id, "{\"currentHp\": 20}").andExpect(jsonPath("$.version").value(1)); // live fields leave it alone
+        mvc.perform(put("/api/players/" + id).header(DevCurrentUser.HEADER, DM).contentType(MediaType.APPLICATION_JSON)
+                        .content(THORIN.replace("\"notes\"", "\"version\": 0, \"notes\"")))
+                .andExpect(status().isConflict());
+        mvc.perform(put("/api/players/" + id).header(DevCurrentUser.HEADER, DM).contentType(MediaType.APPLICATION_JSON)
+                        .content(THORIN.replace("\"notes\"", "\"version\": 1, \"notes\"")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(2));
+        mvc.perform(put("/api/players/" + id).header(DevCurrentUser.HEADER, DM).contentType(MediaType.APPLICATION_JSON)
+                        .content(THORIN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(3));
+        mvc.perform(get("/api/players/" + id).header(DevCurrentUser.HEADER, DM))
+                .andExpect(jsonPath("$.vitals.currentHp").value(20)); // saving the rest never undid the vitals
+    }
+
+    private ResultActions vitals(String user, long id, String body) throws Exception {
+        return mvc.perform(patch("/api/players/" + id + "/vitals").header(DevCurrentUser.HEADER, user)
+                .contentType(MediaType.APPLICATION_JSON).content(body));
     }
 
     private ResultActions send(String user, String body) throws Exception {
