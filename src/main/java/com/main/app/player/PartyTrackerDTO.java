@@ -23,8 +23,10 @@ public record PartyTrackerDTO(String dm, Long trackerId, String name, boolean li
      * @param playerId the character, if this row is one (the same id as in {@code /api/players})
      * @param mine whether the character is the viewer's: they own it or play it
      * @param revealed whether the DM has shown all of what can be hidden of this row: its armor class and hit points (false for characters)
+     * @param conditions the official conditions the row has, in the order the DM gave them; none if it has none. They are
+     *                   shown for every row, a monster's included: a condition is something the table can see happen
      */
     public record Combatant(Long id, String name, Integer initiative, String type, Long playerId, boolean mine,
-                            Integer ac, Integer hp, boolean revealed) {
+                            Integer ac, Integer hp, boolean revealed, List<String> conditions) {
     }
 }

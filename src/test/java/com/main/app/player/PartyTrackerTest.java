@@ -283,6 +283,29 @@ class PartyTrackerTest {
                 .andExpect(jsonPath("$.combatants[1].creatureKey").value("srd_goblin"));
     }
 
+    @Test
+    void everyRowShowsTheOfficialConditionsTheDmPutOnIt() throws Exception {
+        join(ANNA);
+        dmSaves("""
+                {"version": 1, "combatants": [
+                  {"id": 1, "name": "Anna's Wizard", "initiative": 18, "ac": 12, "hp": 30, "type": "PC", "playerId": %d,
+                   "conditions": ["Poisoned", "Prone", "Prone", "Sleepy", 7]},
+                  {"id": 2, "name": "Goblin", "initiative": 15, "ac": 15, "hp": 7, "type": "Creature", "conditions": ["Stunned"]},
+                  {"id": 3, "name": "Ogre", "initiative": 9, "type": "Creature", "conditions": "Prone"},
+                  {"id": 4, "name": "Bat", "initiative": 3, "type": "Creature"}
+                ]}""".formatted(annasCharacter));
+
+        mvc.perform(get("/api/party/trackers").header(DevCurrentUser.HEADER, ANNA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].combatants[0].conditions.length()").value(2)) // official ones only, each once
+                .andExpect(jsonPath("$[0].combatants[0].conditions[0]").value("Poisoned"))
+                .andExpect(jsonPath("$[0].combatants[0].conditions[1]").value("Prone"))
+                .andExpect(jsonPath("$[0].combatants[1].conditions[0]").value("Stunned")) // a monster's, with its stats still hidden
+                .andExpect(jsonPath("$[0].combatants[1].hp").doesNotExist())
+                .andExpect(jsonPath("$[0].combatants[2].conditions").isEmpty()) // not a list
+                .andExpect(jsonPath("$[0].combatants[3].conditions").isEmpty()); // none
+    }
+
     private void join(String user) throws Exception {
         mvc.perform(put("/api/party/members/" + user).header(DevCurrentUser.HEADER, DM)).andExpect(status().isOk());
         mvc.perform(post("/api/party/invitations/" + DM + "/accept").header(DevCurrentUser.HEADER, user)).andExpect(status().isOk());

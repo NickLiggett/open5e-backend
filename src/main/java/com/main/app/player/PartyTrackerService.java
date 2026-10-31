@@ -110,9 +110,23 @@ public class PartyTrackerService {
                     playerId != null && mine.contains(playerId),
                     acShown ? small(row.path("ac")) : null,
                     hpShown ? small(row.path("hp")) : null,
-                    acShown && hpShown && !character));
+                    acShown && hpShown && !character,
+                    conditions(row.path("conditions"))));
         }
         return combatants;
+    }
+
+    /** The official conditions in a row's list, each once and in order; anything else in it is left out. */
+    private static List<String> conditions(JsonNode node) {
+        List<String> conditions = new ArrayList<>();
+        if (node.isArray()) {
+            for (JsonNode one : node) {
+                if (one.isString() && PlayerService.CONDITIONS.contains(one.asString()) && !conditions.contains(one.asString())) {
+                    conditions.add(one.asString());
+                }
+            }
+        }
+        return conditions;
     }
 
     /** A true-or-false field of a row, or {@code otherwise} when it isn't there. */
