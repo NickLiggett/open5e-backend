@@ -57,11 +57,12 @@ class InventoryTest {
         userService.findOrCreate(DM);
         userService.findOrCreate(PLAYER);
         userService.findOrCreate(STRANGER);
-        String body = "{\"name\": \"Thorin\", \"ruleset\": \"5e-2014\", \"playedBy\": \"" + PLAYER + "\"}";
+        String body = "{\"name\": \"Thorin\", \"ruleset\": \"5e-2014\"}";
         String response = mvc.perform(post("/api/players").header(DevCurrentUser.HEADER, DM)
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         character = ((Number) JsonPath.read(response, "$.id")).longValue();
+        jdbc.update("update open5e.player_characters set played_by = (select id from open5e.users where username = ?) where id = ?", PLAYER, character);
     }
 
     @AfterEach

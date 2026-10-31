@@ -4,6 +4,9 @@ import com.jayway.jsonpath.JsonPath;
 import com.main.app.common.TestUsers;
 import com.main.app.user.DevCurrentUser;
 import com.main.app.user.UserService;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -120,16 +123,16 @@ class PlayerTest {
         long id = create(DM, THORIN);
 
         mvc.perform(put("/api/players/" + id).header(DevCurrentUser.HEADER, DM).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\": \"Thorin II\", \"ruleset\": \"5e-2024\", \"level\": 6, \"playedBy\": \"@" + STRANGER + "\"}"))
+                        .content("{\"name\": \"Thorin II\", \"ruleset\": \"5e-2024\", \"level\": 6, \"playedBy\": \"@" + PLAYER + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Thorin II"))
                 .andExpect(jsonPath("$.ruleset").value("5e-2024"))
                 .andExpect(jsonPath("$.level").value(6))
                 .andExpect(jsonPath("$.className").doesNotExist()) // replaced, not merged
-                .andExpect(jsonPath("$.playedBy").value(STRANGER));
+                .andExpect(jsonPath("$.playedBy").value(PLAYER));
 
-        mvc.perform(get("/api/players/" + id).header(DevCurrentUser.HEADER, PLAYER)).andExpect(status().isNotFound());
-        mvc.perform(get("/api/players/" + id).header(DevCurrentUser.HEADER, STRANGER)).andExpect(status().isOk());
+        mvc.perform(get("/api/players/" + id).header(DevCurrentUser.HEADER, PLAYER)).andExpect(status().isOk());
+        mvc.perform(get("/api/players/" + id).header(DevCurrentUser.HEADER, STRANGER)).andExpect(status().isNotFound());
     }
 
     @Test
@@ -257,10 +260,58 @@ class PlayerTest {
     }
 
     @Test
-    void anUnknownPlayerIsNotFound() throws Exception {
+    void anOwnerCannotNameAnyoneButThemselfAsThePlayer() throws Exception {
         send(DM, "{\"name\": \"Ghosted\", \"ruleset\": \"5e-2014\", \"playedBy\": \"nobody-here\"}")
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.detail").value("No user 'nobody-here'"));
+                .andExpect(status().isBadRequest());
+        send(DM, "{\"name\": \"Assigned\", \"ruleset\": \"5e-2014\", \"playedBy\": \"" + PLAYER + "\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("send them a request")));
+        assertThat(jdbc.queryForObject("select count(*) from open5e.player_characters where name in ('Ghosted', 'Assigned')", Integer.class)).isZero();
+    }
+
+    @Test
+    void anOwnerCannotHandTheCharacterToSomeoneByEditing() throws Exception {
+        long id = create(DM, "{\"name\": \"Mouse\", \"ruleset\": \"5e-2024\"}");
+        String mouse = "{\"name\": \"Mouse\", \"ruleset\": \"5e-2024\", \"playedBy\": ";
+
+        edit(DM, id, mouse + "\"@" + STRANGER + "\"}").andExpect(status().isBadRequest());
+        edit(DM, id, mouse + "\"" + DM + "\"}").andExpect(status().isOk()).andExpect(jsonPath("$.playedBy").value(DM));
+        edit(DM, id, mouse + "null}").andExpect(status().isOk()).andExpect(jsonPath("$.playedBy").doesNotExist());
+    }
+
+    @Test
+    void anOwnerKeepsWhoeverAlreadyPlaysItAndCanTakeItBack() throws Exception {
+        long id = create(DM, THORIN);
+
+        edit(DM, id, THORIN.replace("Carries a grudge", "Same player")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.playedBy").value(PLAYER));
+        edit(DM, id, THORIN.replace("\"playedBy\": \"" + PLAYER + "\"", "\"playedBy\": null")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.playedBy").doesNotExist());
+        mvc.perform(get("/api/players/" + id).header(DevCurrentUser.HEADER, PLAYER)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void anOwnersStaleFormCannotUndoAnAcceptedRequest() throws Exception {
+        long id = create(DM, "{\"name\": \"Mouse\", \"ruleset\": \"5e-2024\"}");
+        String form = "{\"name\": \"Mouse\", \"ruleset\": \"5e-2024\", \"playedBy\": null, \"version\": 0}";
+        // the person accepts: played_by is set and the version moves
+        jdbc.update("update open5e.player_characters set played_by = (select id from open5e.users where username = ?), version = version + 1 where id = ?", PLAYER, id);
+
+        edit(DM, id, form).andExpect(status().isConflict());
+        mvc.perform(get("/api/players/" + id).header(DevCurrentUser.HEADER, PLAYER)).andExpect(status().isOk());
+    }
+
+    @Test
+    void whoPlaysItCanStepDownButNobodyElse() throws Exception {
+        long id = create(DM, THORIN);
+
+        mvc.perform(post("/api/players/" + id + "/step-down").header(DevCurrentUser.HEADER, DM)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/players/" + id + "/step-down").header(DevCurrentUser.HEADER, STRANGER)).andExpect(status().isNotFound());
+        mvc.perform(post("/api/players/" + id + "/step-down").header(DevCurrentUser.HEADER, PLAYER)).andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/players/" + id).header(DevCurrentUser.HEADER, PLAYER)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/players/" + id).header(DevCurrentUser.HEADER, DM))
+                .andExpect(jsonPath("$.playedBy").doesNotExist()).andExpect(jsonPath("$.name").value("Thorin Oakenshield"));
     }
 
     @Test
@@ -433,8 +484,24 @@ class PlayerTest {
                 .contentType(MediaType.APPLICATION_JSON).content(body));
     }
 
+    /** Creates it; whoever else the body names as its player is set directly, as accepting a request would. */
     private long create(String user, String body) throws Exception {
-        String response = send(user, body).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        return ((Number) JsonPath.read(response, "$.id")).longValue();
+        Matcher named = Pattern.compile(",? ?\"playedBy\": \"([^\"]+)\"").matcher(body);
+        String player = named.find() && !named.group(1).equals(user) ? named.group(1) : null;
+        String response = send(user, player == null ? body : named.replaceFirst("")).andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(response, "$.id")).longValue();
+        if (player != null) {
+            play(id, player);
+        }
+        return id;
+    }
+
+    private void play(long id, String user) {
+        jdbc.update("update open5e.player_characters set played_by = (select id from open5e.users where username = ?) where id = ?", user, id);
+    }
+
+    private ResultActions edit(String user, long id, String body) throws Exception {
+        return mvc.perform(put("/api/players/" + id).header(DevCurrentUser.HEADER, user).contentType(MediaType.APPLICATION_JSON).content(body));
     }
 }

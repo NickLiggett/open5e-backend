@@ -219,10 +219,13 @@ class PartyTest {
     }
 
     private long createCharacter(String owner, String name, String playedBy) throws Exception {
-        String body = "{\"name\": \"%s\", \"ruleset\": \"5e-2014\", \"playedBy\": %s}"
-                .formatted(name, playedBy == null ? "null" : "\"" + playedBy + "\"");
+        String body = "{\"name\": \"%s\", \"ruleset\": \"5e-2014\"}".formatted(name);
         ResultActions result = mvc.perform(post("/api/players").header(DevCurrentUser.HEADER, owner)
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated());
-        return ((Number) JsonPath.read(result.andReturn().getResponse().getContentAsString(), "$.id")).longValue();
+        long id = ((Number) JsonPath.read(result.andReturn().getResponse().getContentAsString(), "$.id")).longValue();
+        if (playedBy != null) { // a player can't be assigned through the API: they accept a request
+            jdbc.update("update open5e.player_characters set played_by = (select id from open5e.users where username = ?) where id = ?", playedBy, id);
+        }
+        return id;
     }
 }

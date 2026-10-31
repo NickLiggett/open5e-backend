@@ -23,7 +23,7 @@ import java.util.Set;
 
 /**
  * Player characters. A character belongs to the user who made it (the owner), who can change anything about it and
- * delete it. It can name the user who plays it: they see it and can keep its numbers up to date (level, armor class,
+ * delete it. It can have another user play it, but only once that user accepts a request (see {@code CharacterRequestService}): they see it and can keep its numbers up to date (level, armor class,
  * hit points, initiative bonus, notes), but can't rename it, change its rules, or hand it on. A DM whose party the
  * owner or the player has accepted can see it, and can change what changes during play (current and temporary hit
  * points, conditions, inspiration, exhaustion, death saves) and nothing more. Anyone else can't see it at all, which is reported as
@@ -101,7 +101,7 @@ public class PlayerService {
         if (owned != null && owned >= MAX_OWNED) {
             throw badRequest("You can have up to " + MAX_OWNED + " players; delete some first");
         }
-        Long playedBy = playedBy(clean.playedBy());
+        Long playedBy = ownerPlays(clean.playedBy(), me, null);
         long id = jdbc.queryForObject("""
                 insert into open5e.player_characters (owner_id, played_by, name, ruleset, class_key, class_name,
                     classes, species_key, species_name, level, armor_class, hit_points, initiative_bonus, notes)
@@ -130,9 +130,12 @@ public class PlayerService {
                         class_name = ?, classes = ?::jsonb, species_key = ?, species_name = ?, level = ?,
                         armor_class = ?, hit_points = ?, initiative_bonus = ?, notes = ?, version = version + 1,
                         updated_at = now() where id = ?""",
-                    playedBy(clean.playedBy()), clean.name(), clean.ruleset(), clean.classKey(),
+                    ownerPlays(clean.playedBy(), me, existing.playedBy()), clean.name(), clean.ruleset(), clean.classKey(),
                     clean.className(), classesJson(clean), clean.speciesKey(), clean.speciesName(), clean.level(),
                     clean.armorClass(), clean.hitPoints(), clean.initiativeBonus(), clean.notes(), id);
+            if (!Objects.equals(clean.playedBy(), existing.playedBy())) { // the owner settled it themself: any request is moot
+                jdbc.update("delete from open5e.character_requests where player_id = ?", id);
+            }
         } else {
             boolean ownersPartsChanged = !Objects.equals(clean.name(), existing.name())
                     || !Objects.equals(clean.ruleset(), existing.ruleset())
@@ -207,6 +210,16 @@ public class PlayerService {
         jdbc.update("update open5e.player_characters set sheet = ?::jsonb, version = version + 1, updated_at = now() where id = ?",
                 json, id);
         return visible(id, me);
+    }
+
+    /** Whoever plays a character but doesn't own it stops playing it. The owner keeps it and can ask someone else. */
+    public void stepDown(long id) {
+        long me = requireUser();
+        PlayerDTO existing = visible(id, me);
+        if (!existing.role().equals("PLAYER")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the person playing " + existing.name() + " can step down");
+        }
+        jdbc.update("update open5e.player_characters set played_by = null, version = version + 1, updated_at = now() where id = ?", id);
     }
 
     /** Owner only. */
@@ -286,14 +299,18 @@ public class PlayerService {
                 "You can see " + player.name() + " because they're in your party, but not change it");
     }
 
-    /** The id of the user who plays the character, who may be the owner; none if no one is named. */
-    private Long playedBy(String username) {
+    /**
+     * Who the owner may leave as the player: no one, themself, or whoever already plays it. Anyone else has to be asked
+     * (see {@code CharacterRequestService}) and plays it only by accepting.
+     */
+    private Long ownerPlays(String username, long me, String current) {
         if (username == null) {
             return null;
         }
-        return jdbc.queryForList("select id from open5e.users where username = ?", Long.class, username).stream()
-                .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No user '" + username + "'"));
+        if (username.equals(current) || currentUser.username().filter(username::equals).isPresent()) {
+            return jdbc.queryForObject("select id from open5e.users where username = ?", Long.class, username);
+        }
+        throw badRequest("You can't assign " + username + " as the player; send them a request and they play it once they accept");
     }
 
     private long requireUser() {

@@ -21,10 +21,12 @@ public class PlayerController {
 
     private final PlayerService players;
     private final InventoryService inventory;
+    private final CharacterRequestService requests;
 
-    public PlayerController(PlayerService players, InventoryService inventory) {
+    public PlayerController(PlayerService players, InventoryService inventory, CharacterRequestService requests) {
         this.players = players;
         this.inventory = inventory;
+        this.requests = requests;
     }
 
     /** What the character carries: coins and items. */
@@ -74,6 +76,19 @@ public class PlayerController {
     }
 
     /** Owner only. */
+    /** Asks an email address to play a character you own; they play it only by accepting. */
+    @PostMapping("/{id}/requests")
+    public CharacterRequestDTO ask(@PathVariable long id, @RequestBody CharacterRequestBody body) {
+        return requests.ask(id, body);
+    }
+
+    /** Stops playing a character someone else owns. */
+    @PostMapping("/{id}/step-down")
+    public ResponseEntity<Void> stepDown(@PathVariable long id) {
+        players.stepDown(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable long id) {
         players.delete(id);
