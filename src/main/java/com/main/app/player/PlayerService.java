@@ -188,6 +188,32 @@ public class PlayerService {
     }
 
     /**
+     * Keeps the numbers the sheet works out itself (armor class, initiative bonus): the fields given, and only those. The
+     * owner and whoever plays the character can, a DM seeing it through their party can't. Nothing else is touched and
+     * the version stays as it is, so a save of the sheet made at the same time is not refused because of it.
+     */
+    public PlayerDTO updateDerived(long id, DerivedRequest request) {
+        long me = requireUser();
+        PlayerDTO existing = visible(id, me);
+        if (existing.role().equals("PARTY")) {
+            throw readOnly(existing);
+        }
+        if (request == null) {
+            throw badRequest("Nothing to change");
+        }
+        Integer armorClass = range(request.armorClass(), "armorClass", 0, 40);
+        Integer initiativeBonus = range(request.initiativeBonus(), "initiativeBonus", -10, 30);
+        if (armorClass == null && initiativeBonus == null) {
+            throw badRequest("Nothing to change");
+        }
+        jdbc.update("""
+                update open5e.player_characters set armor_class = coalesce(?::integer, armor_class),
+                    initiative_bonus = coalesce(?::integer, initiative_bonus) where id = ?""",
+                armorClass, initiativeBonus, id);
+        return visible(id, me);
+    }
+
+    /**
      * Replaces the sheet. The owner and whoever plays the character can; a DM seeing it through their party can't. The
      * rest of the character, and what changes during play, is not touched; the version moves on, like any other save
      * of the character, so a copy opened before it is out of date.
