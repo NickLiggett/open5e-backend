@@ -166,8 +166,10 @@ class SheetTest {
 
     private long create() throws Exception {
         String response = mvc.perform(post("/api/players").header(DevCurrentUser.HEADER, OWNER)
-                        .contentType(MediaType.APPLICATION_JSON).content(CHARACTER))
+                        .contentType(MediaType.APPLICATION_JSON).content(CHARACTER.replace(", \"playedBy\": \"" + PLAYER + "\"", "")))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        return ((Number) JsonPath.read(response, "$.id")).longValue();
+        long id = ((Number) JsonPath.read(response, "$.id")).longValue();
+        jdbc.update("update open5e.player_characters set played_by = (select id from open5e.users where username = ?) where id = ?", PLAYER, id);
+        return id;
     }
 }
