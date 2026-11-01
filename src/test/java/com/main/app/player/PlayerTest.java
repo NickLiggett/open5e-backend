@@ -216,6 +216,19 @@ class PlayerTest {
     }
 
     @Test
+    void aClassCanHaveASubclass_whichNeedsANameToBeKept() throws Exception {
+        long id = create(DM, "{\"name\": \"Sub\", \"ruleset\": \"5e-2024\", \"level\": 3, \"classes\": ["
+                + "{\"className\": \"Fighter\", \"level\": 2, \"subclassKey\": \"srd-2024_champion\", \"subclassName\": \" Champion \"},"
+                + "{\"className\": \"Wizard\", \"level\": 1, \"subclassKey\": \"srd-2024_evoker\"}]}");
+
+        mvc.perform(get("/api/players/" + id).header(DevCurrentUser.HEADER, DM))
+                .andExpect(jsonPath("$.classes[0].subclassName").value("Champion"))
+                .andExpect(jsonPath("$.classes[0].subclassKey").value("srd-2024_champion"))
+                .andExpect(jsonPath("$.classes[1].subclassName").doesNotExist())
+                .andExpect(jsonPath("$.classes[1].subclassKey").doesNotExist());
+    }
+
+    @Test
     void aSingleClassIsAListOfOne_andNoClassIsAnEmptyList() throws Exception {
         long thorin = create(DM, THORIN);
         long mouse = create(DM, "{\"name\": \"Mouse\", \"ruleset\": \"5e-2024\", \"level\": 4}");

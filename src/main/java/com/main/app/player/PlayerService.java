@@ -398,7 +398,7 @@ public class PlayerService {
         if (given == null || given.isEmpty()) {
             String className = text(request.className(), "className", 80);
             return className == null ? List.of()
-                    : List.of(new ClassLevel(text(request.classKey(), "classKey", 120), className, level));
+                    : List.of(new ClassLevel(text(request.classKey(), "classKey", 120), className, level, null, null));
         }
         if (given.size() > MAX_CLASSES) {
             throw badRequest("A character can have up to " + MAX_CLASSES + " classes");
@@ -416,7 +416,9 @@ public class PlayerService {
             if (one.level() < 1 || one.level() > 20) {
                 throw badRequest("The level in " + className + " must be 1 to 20");
             }
-            classes.add(new ClassLevel(text(one.classKey(), "classKey", 120), className, one.level()));
+            String subclassName = text(one.subclassName(), "subclassName", 80);
+            classes.add(new ClassLevel(text(one.classKey(), "classKey", 120), className, one.level(),
+                    subclassName == null ? null : text(one.subclassKey(), "subclassKey", 120), subclassName));
         }
         return classes;
     }
