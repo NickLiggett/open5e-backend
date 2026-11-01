@@ -69,6 +69,12 @@ public class PlayerController {
         return players.updateVitals(id, request);
     }
 
+    /** The numbers the sheet works out itself, the fields given only; the owner or the player. The version doesn't move. */
+    @PatchMapping("/{id}/derived")
+    public PlayerDTO updateDerived(@PathVariable long id, @RequestBody DerivedRequest request) {
+        return players.updateDerived(id, request);
+    }
+
     /** Replaces the sheet. The owner and the player can; someone seeing the character through their party can't. */
     @PutMapping("/{id}/sheet")
     public PlayerDTO replaceSheet(@PathVariable long id, @RequestBody SheetRequest request) {

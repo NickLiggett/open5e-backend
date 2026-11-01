@@ -159,6 +159,57 @@ class SheetTest {
         replace(OWNER, 999999999L, "{\"sheet\": {}}").andExpect(status().isNotFound());
     }
 
+    @Test
+    void theOwnerAndThePlayerKeepTheWorkedOutNumbers_withoutMovingTheVersion() throws Exception {
+        long id = create();
+        replace(OWNER, id, "{\"sheet\": " + SHEET + "}").andExpect(status().isOk()); // version 1
+
+        derived(OWNER, id, "{\"armorClass\": 17, \"initiativeBonus\": 5}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.armorClass").value(17))
+                .andExpect(jsonPath("$.initiativeBonus").value(5))
+                .andExpect(jsonPath("$.version").value(1));
+        derived(PLAYER, id, "{\"armorClass\": 19}") // only the field given changes
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.armorClass").value(19))
+                .andExpect(jsonPath("$.initiativeBonus").value(5))
+                .andExpect(jsonPath("$.version").value(1))
+                .andExpect(jsonPath("$.sheet.abilities.dex").value(20))
+                .andExpect(jsonPath("$.name").value("Dante"));
+        derived(OWNER, id, "{\"initiativeBonus\": -1, \"armorClass\": null}")
+                .andExpect(jsonPath("$.armorClass").value(19))
+                .andExpect(jsonPath("$.initiativeBonus").value(-1));
+
+        // a sheet save made from the copy opened before is not refused because of it
+        replace(OWNER, id, "{\"version\": 1, \"sheet\": {\"speed\": {\"walk\": 30}}}").andExpect(status().isOk());
+    }
+
+    @Test
+    void theWorkedOutNumbersAreNotForADmOrAStranger_andMustBeInRange() throws Exception {
+        long id = create();
+        long dm = userService.findOrCreate(DM).id();
+        jdbc.update("insert into open5e.party_members (dm_id, user_id, status) values (?, ?, 'ACCEPTED')", dm,
+                userService.findOrCreate(OWNER).id());
+
+        derived(DM, id, "{\"armorClass\": 10}").andExpect(status().isForbidden());
+        derived(STRANGER, id, "{\"armorClass\": 10}").andExpect(status().isNotFound());
+        derived(OWNER, 999999999L, "{\"armorClass\": 10}").andExpect(status().isNotFound());
+        derived(OWNER, id, "{\"armorClass\": 41}").andExpect(status().isBadRequest());
+        derived(OWNER, id, "{\"armorClass\": -1}").andExpect(status().isBadRequest());
+        derived(OWNER, id, "{\"initiativeBonus\": 31}").andExpect(status().isBadRequest());
+        derived(OWNER, id, "{\"initiativeBonus\": -11}").andExpect(status().isBadRequest());
+        derived(OWNER, id, "{}").andExpect(status().isBadRequest());
+        derived(OWNER, id, "{\"armorClass\": null, \"initiativeBonus\": null}").andExpect(status().isBadRequest());
+        mvc.perform(get("/api/players/" + id).header(DevCurrentUser.HEADER, OWNER)) // nothing was kept
+                .andExpect(jsonPath("$.armorClass").doesNotExist())
+                .andExpect(jsonPath("$.initiativeBonus").value(0));
+    }
+
+    private ResultActions derived(String user, long id, String body) throws Exception {
+        return mvc.perform(patch("/api/players/" + id + "/derived").header(DevCurrentUser.HEADER, user)
+                .contentType(MediaType.APPLICATION_JSON).content(body));
+    }
+
     private ResultActions replace(String user, long id, String body) throws Exception {
         return mvc.perform(put("/api/players/" + id + "/sheet").header(DevCurrentUser.HEADER, user)
                 .contentType(MediaType.APPLICATION_JSON).content(body));
